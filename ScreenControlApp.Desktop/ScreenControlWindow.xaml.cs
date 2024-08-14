@@ -43,7 +43,6 @@ namespace ScreenControlApp.Desktop {
 					});
 				});
 
-
 				await Connection.StartAsync();
 			}
 			catch (Exception ex) {
