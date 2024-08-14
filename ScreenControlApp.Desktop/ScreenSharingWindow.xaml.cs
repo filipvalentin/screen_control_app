@@ -1,5 +1,7 @@
 ﻿//using Microsoft.AspNet.SignalR.Client;
 using Microsoft.AspNetCore.SignalR.Client;
+using System.Diagnostics;
+
 
 //using Microsoft.AspNetCore.SignalR.Client;
 using System.Windows;
@@ -47,6 +49,8 @@ namespace ScreenControlApp.Desktop {
 				});
 
 				await Connection.StartAsync();
+
+				test.Text = Connection.ConnectionId;
 			}
 			catch (Exception ex) {
 				
@@ -59,7 +63,7 @@ namespace ScreenControlApp.Desktop {
 
 		private async void Button_Click(object sender, RoutedEventArgs e) {
 			try {
-				await Connection.InvokeAsync("SendPacket", User, test.Text);
+				await Connection.InvokeAsync("AnnounceShare", test.Text, test.Text);
 			}
 			catch (Exception ex) {
 				MessageBox.Show(ex.Message);

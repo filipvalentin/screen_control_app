@@ -43,7 +43,10 @@ namespace ScreenControlApp.Desktop {
 					});
 				});
 
+
 				await Connection.StartAsync();
+
+				test.Text = Connection.ConnectionId;
 			}
 			catch (Exception ex) {
 				if (IsClosed)
@@ -53,13 +56,10 @@ namespace ScreenControlApp.Desktop {
 			}
 		}
 
-		private void ListBox_SelectionChanged(object sender, SelectionChangedEventArgs e) {
-
-		}
 
 		private async void Button_Click(object sender, RoutedEventArgs e) {
 			try {
-				await Connection.InvokeAsync("SendPacket", User, test.Text);
+				await Connection.InvokeAsync("SendPacket", test.Text, test.Text);
 			}
 			catch (Exception ex) {
 				MessageBox.Show(ex.Message);
