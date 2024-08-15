@@ -11,11 +11,11 @@ namespace ScreenControlApp.Desktop {
 	/// Interaction logic for ScreenSharingWindow.xaml
 	/// </summary>
 	public partial class ScreenSharingWindow : Window {
-		private HubConnection? Connection { get; set; }
+		private HubConnection Connection { get; set; }
 		private bool IsClosed { get; set; }
 		private string User { get; set; }
 		private string Passcode { get; set; }
-
+		private string? PeerId { get; set; } = null;
 		public ScreenSharingWindow(string user, string passcode) {
 			User = user;
 			Passcode = passcode;
@@ -47,13 +47,22 @@ namespace ScreenControlApp.Desktop {
 						MessageBox.Show(newMessage);
 					});
 				});
+				Connection.On<string>("FailedConnection", (message) => {
+					MessageBox.Show($"Couldn't connect: {message}");
+				});
+				Connection.On<string>("ReceiveConnectionToShare", (peerId) => {
+					PeerId = peerId;
+					//this.Dispatcher.Invoke(() => {
+					MessageBox.Show($"share received connection {peerId}");
+					//});
+				});
 
 				await Connection.StartAsync();
 
 				test.Text = Connection.ConnectionId;
 			}
 			catch (Exception ex) {
-				
+
 				if (IsClosed)
 					return;
 				MessageBox.Show(ex.Message);
@@ -63,7 +72,7 @@ namespace ScreenControlApp.Desktop {
 
 		private async void Button_Click(object sender, RoutedEventArgs e) {
 			try {
-				await Connection.InvokeAsync("AnnounceShare", test.Text, test.Text);
+				await Connection.InvokeAsync("AnnounceShare", User, Passcode);
 			}
 			catch (Exception ex) {
 				MessageBox.Show(ex.Message);

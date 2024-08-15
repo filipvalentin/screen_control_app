@@ -11,7 +11,7 @@ namespace ScreenControlApp.Desktop {
 		private bool IsClosed { get; set; }
 		private string User { get; set; }
 		private string Passcode { get; set; }
-
+		private string? PeerId { get; set; } = null;
 		public ScreenControlWindow(string user, string passcode) {
 			User = user;
 			Passcode = passcode;
@@ -42,7 +42,15 @@ namespace ScreenControlApp.Desktop {
 						MessageBox.Show(newMessage);
 					});
 				});
-
+				Connection.On<string>("FailedConnection", (message) => {
+					MessageBox.Show($"Couldn't connect: {message}");
+				});
+				Connection.On<string>("ReceiveConnectionToControl", (peerId) => {
+					PeerId = peerId;
+					//this.Dispatcher.Invoke(() => {
+					MessageBox.Show($"control received connection {peerId}");
+					//});
+				});
 
 				await Connection.StartAsync();
 
@@ -59,7 +67,7 @@ namespace ScreenControlApp.Desktop {
 
 		private async void Button_Click(object sender, RoutedEventArgs e) {
 			try {
-				await Connection.InvokeAsync("SendPacket", test.Text, test.Text);
+				await Connection.InvokeAsync("AnnounceControl", User, Passcode);
 			}
 			catch (Exception ex) {
 				MessageBox.Show(ex.Message);
