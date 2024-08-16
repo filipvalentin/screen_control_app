@@ -1,6 +1,11 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
+using System.Drawing.Imaging;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media.Imaging;
+using System.Windows.Media;
+using MessageBox = System.Windows.MessageBox;
 
 namespace ScreenControlApp.Desktop {
 	/// <summary>
@@ -12,6 +17,7 @@ namespace ScreenControlApp.Desktop {
 		private string User { get; set; }
 		private string Passcode { get; set; }
 		private string? PeerId { get; set; } = null;
+		private readonly CancellationTokenSource CancellationTokenSource = new();
 		public ScreenControlWindow(string user, string passcode) {
 			User = user;
 			Passcode = passcode;
@@ -55,6 +61,16 @@ namespace ScreenControlApp.Desktop {
 				await Connection.StartAsync();
 
 				test.Text = Connection.ConnectionId;
+
+				var token = CancellationTokenSource.Token;
+				//while (!token.IsCancellationRequested) {
+				Connection.On<byte[]>("ReceiveStream", (imageBytes) => {
+					using var memoryStream = new MemoryStream(imageBytes);
+					var bitmap = new Bitmap(memoryStream);
+					Image.Source = BitmapToImageSource(bitmap);
+				});
+
+				//}
 			}
 			catch (Exception ex) {
 				if (IsClosed)
@@ -62,6 +78,18 @@ namespace ScreenControlApp.Desktop {
 				MessageBox.Show(ex.Message);
 				throw ex;//handle this
 			}
+		}
+
+		private static BitmapImage BitmapToImageSource(Bitmap bitmap) {
+			using var memoryStream = new MemoryStream();
+			bitmap.Save(memoryStream, ImageFormat.Png);
+			memoryStream.Position = 0;
+			var bitmapImage = new BitmapImage();
+			bitmapImage.BeginInit();
+			bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
+			bitmapImage.StreamSource = memoryStream;
+			bitmapImage.EndInit();
+			return bitmapImage;
 		}
 
 
@@ -74,6 +102,6 @@ namespace ScreenControlApp.Desktop {
 			}
 		}
 
-	
+
 	}
 }

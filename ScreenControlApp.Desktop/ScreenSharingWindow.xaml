@@ -8,7 +8,12 @@
         Title="ScreenSharingWindow" Height="450" Width="800">
     <Grid>
 		<TextBox HorizontalAlignment="Left" Margin="38,10,0,0" TextWrapping="Wrap" Text="TextBox" VerticalAlignment="Top" Width="120" Name="test"/>
-		<Button Content="Button" HorizontalAlignment="Left" Margin="218,10,0,0" VerticalAlignment="Top" Click="Button_Click"/>
-		<StackPanel Margin="0,47,0,0" Name="controlStackPanel"/>
+		<Button Content="Connect" HorizontalAlignment="Left" Margin="218,10,0,0" VerticalAlignment="Top" Click="Button_Click"/>
+		<Button Content="Take Screenshot" HorizontalAlignment="Left" Margin="335,10,0,0" VerticalAlignment="Top" Click="Button_Click_TakeScreenshot"/>
+		<StackPanel Margin="0,47,0,0" Name="controlStackPanel">
+			<Image Height="300" Width="700" Name="Image"/>
+
+		</StackPanel>
+
 	</Grid>
 </Window>

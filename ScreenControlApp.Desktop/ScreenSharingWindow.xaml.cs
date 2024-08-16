@@ -1,10 +1,21 @@
 ﻿//using Microsoft.AspNet.SignalR.Client;
 using Microsoft.AspNetCore.SignalR.Client;
+using ScreenControlApp.Desktop.Common;
 using System.Diagnostics;
+using System.Drawing.Imaging;
+using System.IO;
+using System.Threading.Channels;
+
+
+
 
 
 //using Microsoft.AspNetCore.SignalR.Client;
 using System.Windows;
+using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using MessageBox = System.Windows.MessageBox;
 
 namespace ScreenControlApp.Desktop {
 	/// <summary>
@@ -16,6 +27,8 @@ namespace ScreenControlApp.Desktop {
 		private string User { get; set; }
 		private string Passcode { get; set; }
 		private string? PeerId { get; set; } = null;
+
+		private readonly CancellationTokenSource cancellationTokenSource = new();
 		public ScreenSharingWindow(string user, string passcode) {
 			User = user;
 			Passcode = passcode;
@@ -24,6 +37,7 @@ namespace ScreenControlApp.Desktop {
 
 			this.Closed += (sender, args) => {
 				IsClosed = true;
+				cancellationTokenSource.Cancel();
 			};
 
 			InitializeSignalR();
@@ -31,7 +45,7 @@ namespace ScreenControlApp.Desktop {
 
 		private async void InitializeSignalR() {
 			try {
-				//Connection = new HubConnection("http://localhost:5026/screenControlHub");
+
 				Connection = new HubConnectionBuilder()
 					.WithUrl("http://localhost:5026/screenControlHub")
 					.Build();
@@ -49,6 +63,9 @@ namespace ScreenControlApp.Desktop {
 				});
 				Connection.On<string>("FailedConnection", (message) => {
 					MessageBox.Show($"Couldn't connect: {message}");
+				});
+				Connection.On<string>("FailedTransfer", (message) => {
+					MessageBox.Show($"Couldn't transfer: {message}");
 				});
 				Connection.On<string>("ReceiveConnectionToShare", (peerId) => {
 					PeerId = peerId;
@@ -78,5 +95,88 @@ namespace ScreenControlApp.Desktop {
 				MessageBox.Show(ex.Message);
 			}
 		}
+
+		private async void Button_Click_TakeScreenshot(object sender, RoutedEventArgs e) {
+
+			var cancellationToken = cancellationTokenSource.Token;
+
+			// Create the bitmap once and reuse it
+			var bitmap = new Bitmap(System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width,
+									System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height);
+
+			// Create the graphics object once and reuse it
+			using var graphics = Graphics.FromImage(bitmap);
+			//while (!cancellationToken.IsCancellationRequested) {
+			var screenshot = CaptureScreen(graphics, bitmap);
+
+			var channel = Channel.CreateUnbounded<byte[]>();
+			await Connection.SendAsync("UploadStream", PeerId, channel.Reader);
+			using (var memoryStream = new MemoryStream()) {
+				bitmap.Save(memoryStream, ImageFormat.Png);
+				byte[] imageBytes = memoryStream.ToArray();
+				await channel.Writer.WriteAsync(imageBytes);
+			}
+			
+			channel.Writer.Complete();
+
+			//await Dispatcher.InvokeAsync(() => Image.Source = screenshot);
+			//await Task.Delay(1); // Adjust the delay as needed
+			//}
+		}
+
+
+
+		private static BitmapSource CaptureScreen(Graphics graphics, Bitmap bitmap) {
+			graphics.CopyFromScreen(System.Windows.Forms.Screen.PrimaryScreen.Bounds.X,
+									System.Windows.Forms.Screen.PrimaryScreen.Bounds.Y,
+									0, 0,
+									bitmap.Size,
+									CopyPixelOperation.SourceCopy);
+
+			IntPtr hBitmap = bitmap.GetHbitmap();
+			try {
+				return Imaging.CreateBitmapSourceFromHBitmap(
+					hBitmap,
+					IntPtr.Zero,
+					Int32Rect.Empty,
+					BitmapSizeOptions.FromEmptyOptions());
+			}
+			finally {
+				// Release the HBitmap to avoid memory leaks
+				ScreenCapture.DeleteObject(hBitmap);
+			}
+		}
+
+
+		//public class ScreenshotHelper {
+		//public Bitmap CaptureScreen() {
+		//	// Capture the entire screen.
+		//	Rectangle screenSize = System.Windows.Forms.Screen.PrimaryScreen.Bounds;
+		//	Bitmap bitmap = new Bitmap(screenSize.Width, screenSize.Height);
+
+		//	using (Graphics g = Graphics.FromImage(bitmap)) {
+		//		g.CopyFromScreen(0, 0, 0, 0, bitmap.Size);
+		//	}
+
+		//	return bitmap;
+		//}
+
+		//public BitmapImage BitmapToImageSource(Bitmap bitmap) {
+		//	using (MemoryStream memory = new MemoryStream()) {
+		//		bitmap.Save(memory, ImageFormat.Bmp);
+		//		memory.Position = 0;
+
+		//		BitmapImage bitmapImage = new BitmapImage();
+		//		bitmapImage.BeginInit();
+		//		bitmapImage.StreamSource = memory;
+		//		bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
+		//		bitmapImage.EndInit();
+
+		//		return bitmapImage;
+		//	}
+		//}
 	}
 }
+
+
+
