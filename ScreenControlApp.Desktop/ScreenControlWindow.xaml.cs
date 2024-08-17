@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using System.Windows.Media;
 using MessageBox = System.Windows.MessageBox;
+using System.Windows.Threading;
 
 namespace ScreenControlApp.Desktop {
 	/// <summary>
@@ -18,17 +19,22 @@ namespace ScreenControlApp.Desktop {
 		private string Passcode { get; set; }
 		private string? PeerId { get; set; } = null;
 		private readonly CancellationTokenSource CancellationTokenSource = new();
+		private readonly Dispatcher dispatcher;
 		public ScreenControlWindow(string user, string passcode) {
 			User = user;
 			Passcode = passcode;
 
 			InitializeComponent();
+			MessageBox.Show(Dispatcher.Thread.ManagedThreadId.ToString() + " == "+ System.Environment.CurrentManagedThreadId.ToString());
+
+			dispatcher = Dispatcher.CurrentDispatcher;
 
 			this.Closed += (sender, args) => {
 				IsClosed = true;
 			};
 
 			InitializeSignalR();
+			Connection.InvokeAsync("AnnounceControl", User, Passcode);
 		}
 
 		private async void InitializeSignalR() {
@@ -53,24 +59,53 @@ namespace ScreenControlApp.Desktop {
 				});
 				Connection.On<string>("ReceiveConnectionToControl", (peerId) => {
 					PeerId = peerId;
-					//this.Dispatcher.Invoke(() => {
-					MessageBox.Show($"control received connection {peerId}");
-					//});
+					this.Dispatcher.Invoke(() => {
+						ConnectionStatus.Content = "Connected";
+
+						//MessageBox.Show($"control received connection {peerId}");
+					});
 				});
+				Connection.On<string>("Error", (error) => { MessageBox.Show($"Error: {error}"); });
 
 				await Connection.StartAsync();
 
 				test.Text = Connection.ConnectionId;
-
 				var token = CancellationTokenSource.Token;
-				//while (!token.IsCancellationRequested) {
-				Connection.On<byte[]>("ReceiveStream", (imageBytes) => {
-					using var memoryStream = new MemoryStream(imageBytes);
-					var bitmap = new Bitmap(memoryStream);
-					Image.Source = BitmapToImageSource(bitmap);
-				});
+				_ = Task.Run(async () => {
+					while (PeerId == null) {
+						await Task.Delay(1000);
+					}
+					try {
+						while (!token.IsCancellationRequested) {
+							var channel = await Connection.StreamAsChannelAsync<byte>("DownloadFrame", PeerId, token);
+							using var memoryStream = new MemoryStream();
+							while (await channel.WaitToReadAsync()) {
+								await foreach (var b in channel.ReadAllAsync()) {
+									memoryStream.WriteByte(b);
+								}
+							}
+							if (memoryStream.Length == 0) {
+								Dispatcher.Invoke(() => TransferStatus.Content = "Buffer is empty");
+								await Task.Delay(500);
+								continue;
+							}
+							Dispatcher.Invoke(() => ConnectionStatus.Content = memoryStream.Length);
+							memoryStream.Position = 0;
+							var bitmapImage = new BitmapImage();
+							bitmapImage.BeginInit();
+							bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
+							
+							bitmapImage.StreamSource = memoryStream;
+							bitmapImage.EndInit();
+							MessageBox.Show(System.Environment.CurrentManagedThreadId.ToString());
+							await this.Dispatcher.InvokeAsync(() => { MessageBox.Show(System.Environment.CurrentManagedThreadId.ToString()); Image.Source = bitmapImage; });
 
-				//}
+							await Task.Delay(1000);
+						}
+					} catch(Exception ex) { 
+						MessageBox.Show(ex.ToString());
+					}
+				});
 			}
 			catch (Exception ex) {
 				if (IsClosed)
@@ -82,7 +117,7 @@ namespace ScreenControlApp.Desktop {
 
 		private static BitmapImage BitmapToImageSource(Bitmap bitmap) {
 			using var memoryStream = new MemoryStream();
-			bitmap.Save(memoryStream, ImageFormat.Png);
+			bitmap.Save(memoryStream, ImageFormat.Jpeg);
 			memoryStream.Position = 0;
 			var bitmapImage = new BitmapImage();
 			bitmapImage.BeginInit();

@@ -1,16 +1,9 @@
-﻿//using Microsoft.AspNet.SignalR.Client;
-using Microsoft.AspNetCore.SignalR.Client;
+﻿using Microsoft.AspNetCore.SignalR.Client;
 using ScreenControlApp.Desktop.Common;
 using System.Diagnostics;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Threading.Channels;
-
-
-
-
-
-//using Microsoft.AspNetCore.SignalR.Client;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -41,6 +34,7 @@ namespace ScreenControlApp.Desktop {
 			};
 
 			InitializeSignalR();
+			Connection.InvokeAsync("AnnounceShare", User, Passcode);
 		}
 
 		private async void InitializeSignalR() {
@@ -69,9 +63,11 @@ namespace ScreenControlApp.Desktop {
 				});
 				Connection.On<string>("ReceiveConnectionToShare", (peerId) => {
 					PeerId = peerId;
-					//this.Dispatcher.Invoke(() => {
-					MessageBox.Show($"share received connection {peerId}");
-					//});
+					this.Dispatcher.Invoke(() => {
+						ConnectionStatus.Content = "Connected";
+
+						//MessageBox.Show($"share received connection {peerId}");
+					});
 				});
 
 				await Connection.StartAsync();
@@ -97,6 +93,11 @@ namespace ScreenControlApp.Desktop {
 		}
 
 		private async void Button_Click_TakeScreenshot(object sender, RoutedEventArgs e) {
+			//var channel = Channel.CreateUnbounded<byte>();
+			//await Connection.SendAsync("UploadStream", channel.Reader);
+			//await channel.Writer.WriteAsync(0b01);
+			//await channel.Writer.WriteAsync(0b0101);
+			//channel.Writer.Complete();
 
 			var cancellationToken = cancellationTokenSource.Token;
 
@@ -109,19 +110,21 @@ namespace ScreenControlApp.Desktop {
 			//while (!cancellationToken.IsCancellationRequested) {
 			var screenshot = CaptureScreen(graphics, bitmap);
 
-			var channel = Channel.CreateUnbounded<byte[]>();
-			await Connection.SendAsync("UploadStream", PeerId, channel.Reader);
+			var channel = Channel.CreateUnbounded<byte>();
+			await Connection.SendAsync("UploadFrame", channel.Reader);
 			using (var memoryStream = new MemoryStream()) {
-				bitmap.Save(memoryStream, ImageFormat.Png);
+				bitmap.Save(memoryStream, ImageFormat.Jpeg);
 				byte[] imageBytes = memoryStream.ToArray();
-				await channel.Writer.WriteAsync(imageBytes);
+				ConnectionStatus.Content = imageBytes.Length;
+				foreach(byte b in imageBytes)
+					await channel.Writer.WriteAsync(b);
 			}
-			
 			channel.Writer.Complete();
 
 			//await Dispatcher.InvokeAsync(() => Image.Source = screenshot);
 			//await Task.Delay(1); // Adjust the delay as needed
 			//}
+
 		}
 
 

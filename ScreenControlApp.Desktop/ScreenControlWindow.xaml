@@ -13,6 +13,8 @@
 			<Image Height="300" Width="700" Name="Image"/>
 
 		</StackPanel>
+		<Label Content="Not connected" Name="ConnectionStatus" HorizontalAlignment="Left" Margin="482,7,0,0" VerticalAlignment="Top" RenderTransformOrigin="1.337,-0.583"/>
+		<Label Content="TransferStatus" Name="TransferStatus" HorizontalAlignment="Left" Margin="663,7,0,0" VerticalAlignment="Top" RenderTransformOrigin="1.646,-0.056"/>
 
 	</Grid>
 </Window>
