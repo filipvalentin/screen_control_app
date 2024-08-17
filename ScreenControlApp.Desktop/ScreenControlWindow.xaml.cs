@@ -19,15 +19,12 @@ namespace ScreenControlApp.Desktop {
 		private string Passcode { get; set; }
 		private string? PeerId { get; set; } = null;
 		private readonly CancellationTokenSource CancellationTokenSource = new();
-		private readonly Dispatcher dispatcher;
+
 		public ScreenControlWindow(string user, string passcode) {
 			User = user;
 			Passcode = passcode;
 
 			InitializeComponent();
-			MessageBox.Show(Dispatcher.Thread.ManagedThreadId.ToString() + " == "+ System.Environment.CurrentManagedThreadId.ToString());
-
-			dispatcher = Dispatcher.CurrentDispatcher;
 
 			this.Closed += (sender, args) => {
 				IsClosed = true;
@@ -91,14 +88,17 @@ namespace ScreenControlApp.Desktop {
 							}
 							Dispatcher.Invoke(() => ConnectionStatus.Content = memoryStream.Length);
 							memoryStream.Position = 0;
-							var bitmapImage = new BitmapImage();
-							bitmapImage.BeginInit();
-							bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
-							
-							bitmapImage.StreamSource = memoryStream;
-							bitmapImage.EndInit();
-							MessageBox.Show(System.Environment.CurrentManagedThreadId.ToString());
-							await this.Dispatcher.InvokeAsync(() => { MessageBox.Show(System.Environment.CurrentManagedThreadId.ToString()); Image.Source = bitmapImage; });
+
+							await Dispatcher.InvokeAsync(() => {
+								var bitmapImage = new BitmapImage();
+								bitmapImage.BeginInit();
+								bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
+								bitmapImage.StreamSource = memoryStream;
+								bitmapImage.EndInit();
+
+								Image.Source = bitmapImage;
+								ConnectionStatus.Content = memoryStream.Length;
+							});
 
 							await Task.Delay(1000);
 						}
