@@ -100,7 +100,7 @@ namespace ScreenControlApp.Desktop {
 								ConnectionStatus.Content = memoryStream.Length;
 							});
 
-							await Task.Delay(1000);
+							await Task.Delay(1000/24);
 						}
 					} catch(Exception ex) { 
 						MessageBox.Show(ex.ToString());

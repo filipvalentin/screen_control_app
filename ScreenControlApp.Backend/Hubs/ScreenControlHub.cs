@@ -66,11 +66,10 @@ namespace ScreenControlApp.Backend.Hubs {
 					await caller.SendAsync("Error", "Connection not found", cancellationToken);
 					return;
 				}
-				if (queue.IsEmpty) {
+				if (!queue.TryDequeue(out var buffer)) {
 					return;
 				}
-				var buffer = queue.First();
-
+				
 				foreach (byte b in buffer) { 
 					await writer.WriteAsync(b, cancellationToken);
 				}

@@ -107,23 +107,23 @@ namespace ScreenControlApp.Desktop {
 
 			// Create the graphics object once and reuse it
 			using var graphics = Graphics.FromImage(bitmap);
-			//while (!cancellationToken.IsCancellationRequested) {
-			var screenshot = CaptureScreen(graphics, bitmap);
+			while (!cancellationToken.IsCancellationRequested) {
+				var screenshot = CaptureScreen(graphics, bitmap);
 
-			var channel = Channel.CreateUnbounded<byte>();
-			await Connection.SendAsync("UploadFrame", channel.Reader);
-			using (var memoryStream = new MemoryStream()) {
-				bitmap.Save(memoryStream, ImageFormat.Jpeg);
-				byte[] imageBytes = memoryStream.ToArray();
-				ConnectionStatus.Content = imageBytes.Length;
-				foreach(byte b in imageBytes)
-					await channel.Writer.WriteAsync(b);
+				var channel = Channel.CreateUnbounded<byte>();
+				await Connection.SendAsync("UploadFrame", channel.Reader);
+				using (var memoryStream = new MemoryStream()) {
+					bitmap.Save(memoryStream, ImageFormat.Jpeg);
+					byte[] imageBytes = memoryStream.ToArray();
+					ConnectionStatus.Content = imageBytes.Length;
+					foreach (byte b in imageBytes)
+						await channel.Writer.WriteAsync(b);
+				}
+				channel.Writer.Complete();
+
+				//await Dispatcher.InvokeAsync(() => Image.Source = screenshot);
+				await Task.Delay(1000 / 24); // Adjust the delay as needed
 			}
-			channel.Writer.Complete();
-
-			//await Dispatcher.InvokeAsync(() => Image.Source = screenshot);
-			//await Task.Delay(1); // Adjust the delay as needed
-			//}
 
 		}
 
