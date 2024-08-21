@@ -8,6 +8,8 @@ using System.Windows.Media;
 using MessageBox = System.Windows.MessageBox;
 using System.Windows.Threading;
 using System.Diagnostics;
+using System.Collections.Concurrent;
+using System.Linq;
 
 namespace ScreenControlApp.Desktop {
 	/// <summary>
@@ -20,7 +22,7 @@ namespace ScreenControlApp.Desktop {
 		private string Passcode { get; set; }
 		private string? PeerId { get; set; } = null;
 		private readonly CancellationTokenSource CancellationTokenSource = new();
-
+		private readonly BlockingCollection<MemoryStream> FrameBuffer = new(24 * 5);
 		public ScreenControlWindow(string user, string passcode) {
 			User = user;
 			Passcode = passcode;
@@ -52,9 +54,11 @@ namespace ScreenControlApp.Desktop {
 						MessageBox.Show(newMessage);
 					});
 				});
+
 				Connection.On<string>("FailedConnection", (message) => {
 					MessageBox.Show($"Couldn't connect: {message}");
 				});
+
 				Connection.On<string>("ReceiveConnectionToControl", (peerId) => {
 					PeerId = peerId;
 					this.Dispatcher.Invoke(() => {
@@ -63,63 +67,13 @@ namespace ScreenControlApp.Desktop {
 						//MessageBox.Show($"control received connection {peerId}");
 					});
 				});
+
 				Connection.On<string>("Error", (error) => { MessageBox.Show($"Error: {error}"); });
 
 				await Connection.StartAsync();
 
-				test.Text = Connection.ConnectionId;
-				var token = CancellationTokenSource.Token;
-				_ = Task.Run(async () => {
-					while (PeerId == null) {
-						await Task.Delay(1000);
-					}
-					try {
-						using var memoryStream = new MemoryStream();
-						while (!token.IsCancellationRequested) {
-							// Start the timer
-							var timer = Stopwatch.StartNew();
-
-							var channel = await Connection.StreamAsChannelAsync<byte[]>("DownloadFrame", PeerId, token);
-							memoryStream.SetLength(0); // Reset the memory stream
-
-							while (await channel.WaitToReadAsync()) {
-								await foreach (var chunk in channel.ReadAllAsync()) {
-									memoryStream.Write(chunk, 0, chunk.Length);
-								}
-							}
-
-							if (memoryStream.Length == 0) {
-								Dispatcher.Invoke(() => TransferStatus.Content = "Buffer is empty");
-								await Task.Delay(500);
-								continue;
-							}
-
-							timer.Stop();
-							var elapsedMs = timer.ElapsedMilliseconds;
-							Dispatcher.Invoke(() => time1.Content = elapsedMs);
-							memoryStream.Position = 0;
-
-							timer.Restart();
-							Dispatcher.Invoke(() => {
-								var bitmapImage = new BitmapImage();
-								bitmapImage.BeginInit();
-								bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
-								bitmapImage.StreamSource = memoryStream;
-								bitmapImage.EndInit();
-
-								Image.Source = bitmapImage;
-							});
-							timer.Stop();
-							Dispatcher.Invoke(() => time2.Content = timer.ElapsedMilliseconds);
-
-							// Adjust the delay as needed
-							//await Task.Delay(1000 / 24);
-						}
-					}
-					catch (Exception ex) {
-						MessageBox.Show(ex.ToString());
-					}
-				});
+				_ = Task.Run(RetrieveFrames);
+				_ = Task.Run(DisplayFrames);
 
 			}
 			catch (Exception ex) {
@@ -127,6 +81,71 @@ namespace ScreenControlApp.Desktop {
 					return;
 				MessageBox.Show(ex.Message);
 				throw ex;//handle this
+			}
+		}
+
+		private async Task RetrieveFrames() {
+			var token = CancellationTokenSource.Token;
+			try {
+				while (PeerId == null) {
+					await Task.Delay(1000);
+				}
+				this.Dispatcher.Invoke(() => ConnectingStatusLabel.Content = string.Empty);
+
+				while (!token.IsCancellationRequested) {
+					// Start the timer
+					var timer = Stopwatch.StartNew();
+
+					var channel = await Connection.StreamAsChannelAsync<byte[]>("DownloadFrame", PeerId, token);
+					var memoryStream = new MemoryStream();
+					memoryStream.SetLength(0); // Reset the memory stream
+
+					while (await channel.WaitToReadAsync()) {
+						await foreach (var chunk in channel.ReadAllAsync()) {
+							memoryStream.Write(chunk, 0, chunk.Length);
+						}
+					}
+
+					if (memoryStream.Length == 0) {
+						Dispatcher.Invoke(() => TransferStatus.Content = "Buffer is empty");
+						await Task.Delay(500);
+						continue;
+					}
+
+					memoryStream.Position = 0;
+					FrameBuffer.Add(memoryStream);
+
+					timer.Stop();
+					Dispatcher.Invoke(() => TransferTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
+				}
+			}
+			catch (Exception ex) {
+				MessageBox.Show(ex.ToString());
+			}
+		}
+
+		private async Task DisplayFrames() {
+			try {
+				var token = CancellationTokenSource.Token;
+				while (!token.IsCancellationRequested) {
+					var timer = Stopwatch.StartNew();
+					using MemoryStream memoryStream = FrameBuffer.Take();
+					this.Dispatcher.Invoke(() => {
+						var bitmapImage = new BitmapImage();
+						bitmapImage.BeginInit();
+						bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
+						bitmapImage.StreamSource = memoryStream;
+						bitmapImage.EndInit();
+
+						Image.Source = bitmapImage;
+					});
+					timer.Stop();
+					Dispatcher.Invoke(() => RenderTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
+					await Task.Delay(1000 / 24);
+				}
+			}
+			catch (Exception e) {
+				MessageBox.Show(e.ToString());
 			}
 		}
 

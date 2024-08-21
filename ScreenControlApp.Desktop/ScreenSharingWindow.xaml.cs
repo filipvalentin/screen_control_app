@@ -93,15 +93,8 @@ namespace ScreenControlApp.Desktop {
 		}
 
 		private async void Button_Click_TakeScreenshot(object sender, RoutedEventArgs e) {
-			//var channel = Channel.CreateUnbounded<byte>();
-			//await Connection.SendAsync("UploadStream", channel.Reader);
-			//await channel.Writer.WriteAsync(0b01);
-			//await channel.Writer.WriteAsync(0b0101);
-			//channel.Writer.Complete();
 
 			var cancellationToken = cancellationTokenSource.Token;
-
-			// Create the bitmap once and reuse it
 
 			_ = Task.Run(async () => {
 				var bitmap = new Bitmap(System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width,
@@ -110,18 +103,21 @@ namespace ScreenControlApp.Desktop {
 				using var memoryStream = new MemoryStream();
 
 				try {
+
 					while (!cancellationToken.IsCancellationRequested) {
+						var timer = Stopwatch.StartNew();
 						CaptureScreen(graphics, bitmap);
 
-						memoryStream.SetLength(0); // Reset the memory stream
+						memoryStream.SetLength(0); 
 						bitmap.Save(memoryStream, ImageFormat.Jpeg);
 						byte[] imageBytes = memoryStream.ToArray();
-						this.Dispatcher.Invoke(() => ConnectionStatus.Content = imageBytes.Length);
+						this.Dispatcher.Invoke(() => { ConnectionStatus.Content = imageBytes.Length; CaptureTimeLabel.Content = timer.ElapsedMilliseconds + "ms"; });
 
+						timer.Restart();
 						var channel = Channel.CreateUnbounded<byte[]>();
 						await Connection.SendAsync("UploadFrame", channel.Reader);
 
-						const int chunkSize = 4096; // Adjust the chunk size as needed
+						const int chunkSize = 8192;
 						int offset = 0;
 						while (offset < imageBytes.Length) {
 							int count = Math.Min(chunkSize, imageBytes.Length - offset);
@@ -133,7 +129,8 @@ namespace ScreenControlApp.Desktop {
 						channel.Writer.Complete();
 
 						await channel.Reader.Completion;
-						//await Task.Delay(1); 
+						this.Dispatcher.Invoke(() => TransferTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
+
 					}
 				}
 				catch (Exception ex) {
@@ -143,7 +140,7 @@ namespace ScreenControlApp.Desktop {
 		}
 
 
-			private void CaptureScreen(Graphics graphics, Bitmap bitmap) {
+		private void CaptureScreen(Graphics graphics, Bitmap bitmap) {
 			graphics.CopyFromScreen(System.Windows.Forms.Screen.PrimaryScreen.Bounds.X,
 									System.Windows.Forms.Screen.PrimaryScreen.Bounds.Y,
 									0, 0,

@@ -81,7 +81,7 @@ namespace ScreenControlApp.Backend.Hubs {
 				}
 
 				// Write the buffer in chunks
-				const int chunkSize = 4096; // Adjust the chunk size as needed
+				const int chunkSize = 8192; // Adjust the chunk size as needed
 				int offset = 0;
 				while (offset < buffer.Length) {
 					int count = Math.Min(chunkSize, buffer.Length - offset);
