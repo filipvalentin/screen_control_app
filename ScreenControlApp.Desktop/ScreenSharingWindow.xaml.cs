@@ -102,53 +102,75 @@ namespace ScreenControlApp.Desktop {
 			var cancellationToken = cancellationTokenSource.Token;
 
 			// Create the bitmap once and reuse it
-			var bitmap = new Bitmap(System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width,
-									System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height);
 
-			// Create the graphics object once and reuse it
-			using var graphics = Graphics.FromImage(bitmap);
-			while (!cancellationToken.IsCancellationRequested) {
-				var screenshot = CaptureScreen(graphics, bitmap);
+			_ = Task.Run(async () => {
+				var bitmap = new Bitmap(System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width,
+										System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height);
+				using var graphics = Graphics.FromImage(bitmap);
+				using var memoryStream = new MemoryStream();
 
-				var channel = Channel.CreateUnbounded<byte>();
-				await Connection.SendAsync("UploadFrame", channel.Reader);
-				using (var memoryStream = new MemoryStream()) {
-					bitmap.Save(memoryStream, ImageFormat.Jpeg);
-					byte[] imageBytes = memoryStream.ToArray();
-					ConnectionStatus.Content = imageBytes.Length;
-					foreach (byte b in imageBytes)
-						await channel.Writer.WriteAsync(b);
+				try {
+					while (!cancellationToken.IsCancellationRequested) {
+						CaptureScreen(graphics, bitmap);
+
+						memoryStream.SetLength(0); // Reset the memory stream
+						bitmap.Save(memoryStream, ImageFormat.Jpeg);
+						byte[] imageBytes = memoryStream.ToArray();
+						this.Dispatcher.Invoke(() => ConnectionStatus.Content = imageBytes.Length);
+
+						var channel = Channel.CreateUnbounded<byte[]>();
+						await Connection.SendAsync("UploadFrame", channel.Reader);
+
+						const int chunkSize = 4096; // Adjust the chunk size as needed
+						int offset = 0;
+						while (offset < imageBytes.Length) {
+							int count = Math.Min(chunkSize, imageBytes.Length - offset);
+							var chunk = new byte[count];
+							Array.Copy(imageBytes, offset, chunk, 0, count);
+							await channel.Writer.WriteAsync(chunk);
+							offset += count;
+						}
+						channel.Writer.Complete();
+
+						await channel.Reader.Completion;
+						//await Task.Delay(1); 
+					}
 				}
-				channel.Writer.Complete();
-
-				//await Dispatcher.InvokeAsync(() => Image.Source = screenshot);
-				await Task.Delay(1000 / 24); // Adjust the delay as needed
-			}
-
+				catch (Exception ex) {
+					MessageBox.Show(ex.ToString());
+				}
+			});
 		}
 
 
-
-		private static BitmapSource CaptureScreen(Graphics graphics, Bitmap bitmap) {
+			private void CaptureScreen(Graphics graphics, Bitmap bitmap) {
 			graphics.CopyFromScreen(System.Windows.Forms.Screen.PrimaryScreen.Bounds.X,
 									System.Windows.Forms.Screen.PrimaryScreen.Bounds.Y,
 									0, 0,
 									bitmap.Size,
 									CopyPixelOperation.SourceCopy);
-
-			IntPtr hBitmap = bitmap.GetHbitmap();
-			try {
-				return Imaging.CreateBitmapSourceFromHBitmap(
-					hBitmap,
-					IntPtr.Zero,
-					Int32Rect.Empty,
-					BitmapSizeOptions.FromEmptyOptions());
-			}
-			finally {
-				// Release the HBitmap to avoid memory leaks
-				ScreenCapture.DeleteObject(hBitmap);
-			}
 		}
+
+		//private static BitmapSource CaptureScreen(Graphics graphics, Bitmap bitmap) {
+		//	graphics.CopyFromScreen(System.Windows.Forms.Screen.PrimaryScreen.Bounds.X,
+		//							System.Windows.Forms.Screen.PrimaryScreen.Bounds.Y,
+		//							0, 0,
+		//							bitmap.Size,
+		//							CopyPixelOperation.SourceCopy);
+
+		//	IntPtr hBitmap = bitmap.GetHbitmap();
+		//	try {
+		//		return Imaging.CreateBitmapSourceFromHBitmap(
+		//			hBitmap,
+		//			IntPtr.Zero,
+		//			Int32Rect.Empty,
+		//			BitmapSizeOptions.FromEmptyOptions());
+		//	}
+		//	finally {
+		//		// Release the HBitmap to avoid memory leaks
+		//		ScreenCapture.DeleteObject(hBitmap);
+		//	}
+		//}
 
 
 		//public class ScreenshotHelper {

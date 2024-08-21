@@ -34,22 +34,32 @@ namespace ScreenControlApp.Backend.Hubs {
 			await Clients.Client(value.shareConnectionId).SendAsync("ReceiveConnectionToShare", Context.ConnectionId);
 		}
 
-		public async Task UploadFrame(ChannelReader<byte> stream) {
-			var memoryStream = new MemoryStream();
-			while (await stream.WaitToReadAsync()) {
-				await foreach (var b in stream.ReadAllAsync()) {
-					memoryStream.WriteByte(b);
+		public async Task UploadFrame(ChannelReader<byte[]> stream) {
+			try {
+				var memoryStream = new MemoryStream();
+				while (await stream.WaitToReadAsync()) {
+					await foreach (var chunk in stream.ReadAllAsync()) {
+						memoryStream.Write(chunk, 0, chunk.Length);
+					}
 				}
+				memoryStream.Position = 0;
+
+				var arr = memoryStream.ToArray();
+				if (!streamBuffer.TryGetValue(Context.ConnectionId, out var queue)) {
+					queue = new ConcurrentQueue<byte[]>();
+					streamBuffer[Context.ConnectionId] = queue;
+				}
+				queue.Enqueue(arr);
+				Console.WriteLine(queue.Count);
 			}
-			memoryStream.Position = 0;
-			//await Task.Run(() => {
-			var arr = memoryStream.ToArray();
-			streamBuffer[Context.ConnectionId].Enqueue(arr);
-			//});
+			catch (Exception ex) {
+				Console.WriteLine(ex);
+			}
 		}
 
-		public ChannelReader<byte> DownloadFrame(string connectionId, CancellationToken cancellationToken) {
-			var channel = Channel.CreateUnbounded<byte>();
+
+		public ChannelReader<byte[]> DownloadFrame(string connectionId, CancellationToken cancellationToken) {
+			var channel = Channel.CreateUnbounded<byte[]>();
 
 			// We don't want to await WriteItemsAsync, otherwise we'd end up waiting 
 			// for all the items to be written before returning the channel back to
@@ -59,7 +69,7 @@ namespace ScreenControlApp.Backend.Hubs {
 			return channel.Reader;
 		}
 
-		private static async Task WriteItemsAsync(ChannelWriter<byte> writer, IClientProxy caller, string connectionId, CancellationToken cancellationToken) {
+		private static async Task WriteItemsAsync(ChannelWriter<byte[]> writer, IClientProxy caller, string connectionId, CancellationToken cancellationToken) {
 			Exception? localException = null;
 			try {
 				if (!streamBuffer.TryGetValue(connectionId, out var queue)) {
@@ -69,9 +79,16 @@ namespace ScreenControlApp.Backend.Hubs {
 				if (!queue.TryDequeue(out var buffer)) {
 					return;
 				}
-				
-				foreach (byte b in buffer) { 
-					await writer.WriteAsync(b, cancellationToken);
+
+				// Write the buffer in chunks
+				const int chunkSize = 4096; // Adjust the chunk size as needed
+				int offset = 0;
+				while (offset < buffer.Length) {
+					int count = Math.Min(chunkSize, buffer.Length - offset);
+					var chunk = new byte[count];
+					Array.Copy(buffer, offset, chunk, 0, count);
+					await writer.WriteAsync(chunk, cancellationToken);
+					offset += count;
 				}
 			}
 			catch (Exception ex) {
@@ -81,6 +98,10 @@ namespace ScreenControlApp.Backend.Hubs {
 				writer.Complete(localException);
 			}
 		}
+
+
+
+
 	}
 
 

@@ -7,6 +7,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Media;
 using MessageBox = System.Windows.MessageBox;
 using System.Windows.Threading;
+using System.Diagnostics;
 
 namespace ScreenControlApp.Desktop {
 	/// <summary>
@@ -73,23 +74,33 @@ namespace ScreenControlApp.Desktop {
 						await Task.Delay(1000);
 					}
 					try {
+						using var memoryStream = new MemoryStream();
 						while (!token.IsCancellationRequested) {
-							var channel = await Connection.StreamAsChannelAsync<byte>("DownloadFrame", PeerId, token);
-							using var memoryStream = new MemoryStream();
+							// Start the timer
+							var timer = Stopwatch.StartNew();
+
+							var channel = await Connection.StreamAsChannelAsync<byte[]>("DownloadFrame", PeerId, token);
+							memoryStream.SetLength(0); // Reset the memory stream
+
 							while (await channel.WaitToReadAsync()) {
-								await foreach (var b in channel.ReadAllAsync()) {
-									memoryStream.WriteByte(b);
+								await foreach (var chunk in channel.ReadAllAsync()) {
+									memoryStream.Write(chunk, 0, chunk.Length);
 								}
 							}
+
 							if (memoryStream.Length == 0) {
 								Dispatcher.Invoke(() => TransferStatus.Content = "Buffer is empty");
 								await Task.Delay(500);
 								continue;
 							}
-							Dispatcher.Invoke(() => ConnectionStatus.Content = memoryStream.Length);
+
+							timer.Stop();
+							var elapsedMs = timer.ElapsedMilliseconds;
+							Dispatcher.Invoke(() => time1.Content = elapsedMs);
 							memoryStream.Position = 0;
 
-							await Dispatcher.InvokeAsync(() => {
+							timer.Restart();
+							Dispatcher.Invoke(() => {
 								var bitmapImage = new BitmapImage();
 								bitmapImage.BeginInit();
 								bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
@@ -97,15 +108,19 @@ namespace ScreenControlApp.Desktop {
 								bitmapImage.EndInit();
 
 								Image.Source = bitmapImage;
-								ConnectionStatus.Content = memoryStream.Length;
 							});
+							timer.Stop();
+							Dispatcher.Invoke(() => time2.Content = timer.ElapsedMilliseconds);
 
-							await Task.Delay(1000/24);
+							// Adjust the delay as needed
+							//await Task.Delay(1000 / 24);
 						}
-					} catch(Exception ex) { 
+					}
+					catch (Exception ex) {
 						MessageBox.Show(ex.ToString());
 					}
 				});
+
 			}
 			catch (Exception ex) {
 				if (IsClosed)
