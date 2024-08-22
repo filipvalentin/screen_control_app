@@ -1,6 +1,4 @@
-﻿using System.Windows;
-
-namespace ScreenControlApp.Desktop {
+﻿namespace ScreenControlApp.Desktop {
 	/// <summary>
 	/// Interaction logic for App.xaml
 	/// </summary>

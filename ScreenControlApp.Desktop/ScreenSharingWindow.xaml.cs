@@ -1,13 +1,9 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
-using ScreenControlApp.Desktop.Common;
 using System.Diagnostics;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Threading.Channels;
 using System.Windows;
-using System.Windows.Interop;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using MessageBox = System.Windows.MessageBox;
 
 namespace ScreenControlApp.Desktop {
@@ -15,31 +11,45 @@ namespace ScreenControlApp.Desktop {
 	/// Interaction logic for ScreenSharingWindow.xaml
 	/// </summary>
 	public partial class ScreenSharingWindow : Window {
-		private HubConnection Connection { get; set; }
-		private bool IsClosed { get; set; }
+		private HubConnection Connection { get; set; } = null!;
+		//private bool IsClosed { get; set; }
 		private string User { get; set; }
 		private string Passcode { get; set; }
 		private string? PeerId { get; set; } = null;
+		private new bool IsInitialized { get; set; }
 
-		private readonly CancellationTokenSource cancellationTokenSource = new();
+		private readonly CancellationTokenSource CancellationTokenSource  = new();
 		public ScreenSharingWindow(string user, string passcode) {
+			InitializeComponent();
+
 			User = user;
 			Passcode = passcode;
 
-			InitializeComponent();
-
 			this.Closed += (sender, args) => {
-				IsClosed = true;
-				cancellationTokenSource.Cancel();
+				//IsClosed = true;
+				CancellationTokenSource.Cancel();
 			};
 
-			InitializeSignalR();
-			Connection.InvokeAsync("AnnounceShare", User, Passcode);
+			_ = Task.Run(InitializeWindowState);
 		}
 
-		private async void InitializeSignalR() {
-			try {
+		private async Task InitializeWindowState() {
+			await InitializeSignalR();
 
+			if (CancellationTokenSource.IsCancellationRequested) {
+				this.Close();
+				return;
+			}
+
+			await Connection.InvokeAsync("AnnounceShare", User, Passcode);
+			
+			//_ = Task.Run();
+
+			IsInitialized = true;
+		}
+
+		private async Task InitializeSignalR() {
+			try {
 				Connection = new HubConnectionBuilder()
 					.WithUrl("http://localhost:5026/screenControlHub")
 					.Build();
@@ -72,14 +82,12 @@ namespace ScreenControlApp.Desktop {
 
 				await Connection.StartAsync();
 
-				test.Text = Connection.ConnectionId;
+				//test.Text = Connection.ConnectionId;
 			}
 			catch (Exception ex) {
-
-				if (IsClosed)
-					return;
+				//if (IsClosed)
+				//	return;
 				MessageBox.Show(ex.Message);
-				throw ex;
 			}
 		}
 
@@ -94,7 +102,7 @@ namespace ScreenControlApp.Desktop {
 
 		private async void Button_Click_TakeScreenshot(object sender, RoutedEventArgs e) {
 
-			var cancellationToken = cancellationTokenSource.Token;
+			var cancellationToken = CancellationTokenSource.Token;
 
 			_ = Task.Run(async () => {
 				var bitmap = new Bitmap(System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width,
@@ -108,7 +116,7 @@ namespace ScreenControlApp.Desktop {
 						var timer = Stopwatch.StartNew();
 						CaptureScreen(graphics, bitmap);
 
-						memoryStream.SetLength(0); 
+						memoryStream.SetLength(0);
 						bitmap.Save(memoryStream, ImageFormat.Jpeg);
 						byte[] imageBytes = memoryStream.ToArray();
 						this.Dispatcher.Invoke(() => { ConnectionStatus.Content = imageBytes.Length; CaptureTimeLabel.Content = timer.ElapsedMilliseconds + "ms"; });
@@ -140,63 +148,13 @@ namespace ScreenControlApp.Desktop {
 		}
 
 
-		private void CaptureScreen(Graphics graphics, Bitmap bitmap) {
+		private static void CaptureScreen(Graphics graphics, Bitmap bitmap) {
 			graphics.CopyFromScreen(System.Windows.Forms.Screen.PrimaryScreen.Bounds.X,
 									System.Windows.Forms.Screen.PrimaryScreen.Bounds.Y,
 									0, 0,
 									bitmap.Size,
 									CopyPixelOperation.SourceCopy);
 		}
-
-		//private static BitmapSource CaptureScreen(Graphics graphics, Bitmap bitmap) {
-		//	graphics.CopyFromScreen(System.Windows.Forms.Screen.PrimaryScreen.Bounds.X,
-		//							System.Windows.Forms.Screen.PrimaryScreen.Bounds.Y,
-		//							0, 0,
-		//							bitmap.Size,
-		//							CopyPixelOperation.SourceCopy);
-
-		//	IntPtr hBitmap = bitmap.GetHbitmap();
-		//	try {
-		//		return Imaging.CreateBitmapSourceFromHBitmap(
-		//			hBitmap,
-		//			IntPtr.Zero,
-		//			Int32Rect.Empty,
-		//			BitmapSizeOptions.FromEmptyOptions());
-		//	}
-		//	finally {
-		//		// Release the HBitmap to avoid memory leaks
-		//		ScreenCapture.DeleteObject(hBitmap);
-		//	}
-		//}
-
-
-		//public class ScreenshotHelper {
-		//public Bitmap CaptureScreen() {
-		//	// Capture the entire screen.
-		//	Rectangle screenSize = System.Windows.Forms.Screen.PrimaryScreen.Bounds;
-		//	Bitmap bitmap = new Bitmap(screenSize.Width, screenSize.Height);
-
-		//	using (Graphics g = Graphics.FromImage(bitmap)) {
-		//		g.CopyFromScreen(0, 0, 0, 0, bitmap.Size);
-		//	}
-
-		//	return bitmap;
-		//}
-
-		//public BitmapImage BitmapToImageSource(Bitmap bitmap) {
-		//	using (MemoryStream memory = new MemoryStream()) {
-		//		bitmap.Save(memory, ImageFormat.Bmp);
-		//		memory.Position = 0;
-
-		//		BitmapImage bitmapImage = new BitmapImage();
-		//		bitmapImage.BeginInit();
-		//		bitmapImage.StreamSource = memory;
-		//		bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
-		//		bitmapImage.EndInit();
-
-		//		return bitmapImage;
-		//	}
-		//}
 	}
 }
 

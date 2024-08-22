@@ -4,40 +4,55 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
-using System.Windows.Media;
 using MessageBox = System.Windows.MessageBox;
 using System.Windows.Threading;
 using System.Diagnostics;
 using System.Collections.Concurrent;
-using System.Linq;
 
 namespace ScreenControlApp.Desktop {
 	/// <summary>
 	/// Interaction logic for ScreenControlWindow.xaml
 	/// </summary>
 	public partial class ScreenControlWindow : Window {
-		private HubConnection Connection { get; set; }
-		private bool IsClosed { get; set; }
+		private HubConnection Connection { get; set; } = null!;
+		//private bool IsClosed { get; set; }
 		private string User { get; set; }
 		private string Passcode { get; set; }
 		private string? PeerId { get; set; } = null;
+		private new bool IsInitialized { get; set; }
 		private readonly CancellationTokenSource CancellationTokenSource = new();
 		private readonly BlockingCollection<MemoryStream> FrameBuffer = new(24 * 5);
 		public ScreenControlWindow(string user, string passcode) {
+			InitializeComponent();
+			
 			User = user;
 			Passcode = passcode;
 
-			InitializeComponent();
-
 			this.Closed += (sender, args) => {
-				IsClosed = true;
+				//IsClosed = true;
+				CancellationTokenSource.Cancel();
 			};
 
-			InitializeSignalR();
-			Connection.InvokeAsync("AnnounceControl", User, Passcode);
+			_ = Task.Run(InitializeWindowState);
 		}
 
-		private async void InitializeSignalR() {
+		private async Task InitializeWindowState() {
+			await InitializeSignalR();
+
+			if (CancellationTokenSource.IsCancellationRequested) {
+				this.Close();
+				return;
+			}
+
+			await Connection.InvokeAsync("AnnounceControl", User, Passcode);
+
+			_ = Task.Run(RetrieveFrames);
+			_ = Task.Run(DisplayFrames);
+
+			IsInitialized = true;
+		}
+
+		private async Task InitializeSignalR() {
 			try {
 				Connection = new HubConnectionBuilder()
 					.WithUrl("http://localhost:5026/screenControlHub")
@@ -71,30 +86,26 @@ namespace ScreenControlApp.Desktop {
 				Connection.On<string>("Error", (error) => { MessageBox.Show($"Error: {error}"); });
 
 				await Connection.StartAsync();
-
-				_ = Task.Run(RetrieveFrames);
-				_ = Task.Run(DisplayFrames);
-
 			}
 			catch (Exception ex) {
-				if (IsClosed)
-					return;
+				//if (IsClosed)
+				//	CancellationTokenSource.Cancel();
 				MessageBox.Show(ex.Message);
-				throw ex;//handle this
+				CancellationTokenSource.Cancel();
 			}
 		}
 
 		private async Task RetrieveFrames() {
 			var token = CancellationTokenSource.Token;
 			try {
-				while (PeerId == null) {
+				while (!IsInitialized) {
 					await Task.Delay(1000);
 				}
 				this.Dispatcher.Invoke(() => ConnectingStatusLabel.Content = string.Empty);
 
+				var timer = Stopwatch.StartNew();
 				while (!token.IsCancellationRequested) {
-					// Start the timer
-					var timer = Stopwatch.StartNew();
+					timer.Restart();
 
 					var channel = await Connection.StreamAsChannelAsync<byte[]>("DownloadFrame", PeerId, token);
 					var memoryStream = new MemoryStream();
@@ -127,8 +138,9 @@ namespace ScreenControlApp.Desktop {
 		private async Task DisplayFrames() {
 			try {
 				var token = CancellationTokenSource.Token;
+				var timer = Stopwatch.StartNew();
 				while (!token.IsCancellationRequested) {
-					var timer = Stopwatch.StartNew();
+					timer.Restart();
 					using MemoryStream memoryStream = FrameBuffer.Take();
 					this.Dispatcher.Invoke(() => {
 						var bitmapImage = new BitmapImage();
@@ -136,12 +148,13 @@ namespace ScreenControlApp.Desktop {
 						bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
 						bitmapImage.StreamSource = memoryStream;
 						bitmapImage.EndInit();
-
+						bitmapImage.Freeze();
 						Image.Source = bitmapImage;
+						RenderFrameBufferLabel.Content = FrameBuffer.Count;
 					});
 					timer.Stop();
 					Dispatcher.Invoke(() => RenderTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
-					await Task.Delay(1000 / 24);
+					await Task.Delay(12);
 				}
 			}
 			catch (Exception e) {
@@ -149,17 +162,17 @@ namespace ScreenControlApp.Desktop {
 			}
 		}
 
-		private static BitmapImage BitmapToImageSource(Bitmap bitmap) {
-			using var memoryStream = new MemoryStream();
-			bitmap.Save(memoryStream, ImageFormat.Jpeg);
-			memoryStream.Position = 0;
-			var bitmapImage = new BitmapImage();
-			bitmapImage.BeginInit();
-			bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
-			bitmapImage.StreamSource = memoryStream;
-			bitmapImage.EndInit();
-			return bitmapImage;
-		}
+		//private static BitmapImage BitmapToImageSource(Bitmap bitmap) {
+		//	using var memoryStream = new MemoryStream();
+		//	bitmap.Save(memoryStream, ImageFormat.Jpeg);
+		//	memoryStream.Position = 0;
+		//	var bitmapImage = new BitmapImage();
+		//	bitmapImage.BeginInit();
+		//	bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
+		//	bitmapImage.StreamSource = memoryStream;
+		//	bitmapImage.EndInit();
+		//	return bitmapImage;
+		//}
 
 
 		private async void Button_Click(object sender, RoutedEventArgs e) {

@@ -1,8 +1,5 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
-using System.Diagnostics;
-using System.Reflection.PortableExecutable;
-using System.Text;
 using System.Threading.Channels;
 
 namespace ScreenControlApp.Backend.Hubs {
