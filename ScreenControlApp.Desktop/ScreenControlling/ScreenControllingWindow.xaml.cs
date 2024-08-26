@@ -9,11 +9,11 @@ using System.Windows.Threading;
 using System.Diagnostics;
 using System.Collections.Concurrent;
 
-namespace ScreenControlApp.Desktop {
+namespace ScreenControlApp.Desktop.ScreenControlling {
 	/// <summary>
-	/// Interaction logic for ScreenControlWindow.xaml
+	/// Interaction logic for ScreenControllingWindow.xaml
 	/// </summary>
-	public partial class ScreenControlWindow : Window {
+	public partial class ScreenControllingWindow : Window {
 		private HubConnection Connection { get; set; } = null!;
 		//private bool IsClosed { get; set; }
 		private string User { get; set; }
@@ -22,9 +22,9 @@ namespace ScreenControlApp.Desktop {
 		private new bool IsInitialized { get; set; }
 		private readonly CancellationTokenSource CancellationTokenSource = new();
 		private readonly BlockingCollection<MemoryStream> FrameBuffer = new(24 * 5);
-		public ScreenControlWindow(string user, string passcode) {
+		public ScreenControllingWindow(string user, string passcode) {
 			InitializeComponent();
-			
+
 			User = user;
 			Passcode = passcode;
 
@@ -142,25 +142,26 @@ namespace ScreenControlApp.Desktop {
 				while (!token.IsCancellationRequested) {
 					timer.Restart();
 					using MemoryStream memoryStream = FrameBuffer.Take();
+					var bitmapImage = new BitmapImage();
+					bitmapImage.BeginInit();
+					bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
+					bitmapImage.StreamSource = memoryStream;
+					bitmapImage.EndInit();
+					bitmapImage.Freeze();
 					this.Dispatcher.Invoke(() => {
-						var bitmapImage = new BitmapImage();
-						bitmapImage.BeginInit();
-						bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
-						bitmapImage.StreamSource = memoryStream;
-						bitmapImage.EndInit();
-						bitmapImage.Freeze();
 						Image.Source = bitmapImage;
 						RenderFrameBufferLabel.Content = FrameBuffer.Count;
 					});
 					timer.Stop();
 					Dispatcher.Invoke(() => RenderTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
-					await Task.Delay(12);
+					await Task.Delay(24);
 				}
 			}
 			catch (Exception e) {
 				MessageBox.Show(e.ToString());
 			}
 		}
+
 
 		//private static BitmapImage BitmapToImageSource(Bitmap bitmap) {
 		//	using var memoryStream = new MemoryStream();
@@ -184,6 +185,35 @@ namespace ScreenControlApp.Desktop {
 			}
 		}
 
+		public struct KeyboardInput {
+			public enum ModifierKey {
+				NONE, SHIFT, CTRL, ALT,
+			}
 
+			public ushort Key { get; set; }
+			public ModifierKey SpecialKeyFlag { get; set; }
+		}
+		//public enum MouseDown
+
+		private void VideoFeed_MouseMove(object sender, System.Windows.Input.MouseEventArgs e) {
+			//e.
+		}
+
+		private async void VideoFeed_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e) {
+			//MessageBox.Show(e.GetPosition(null).X.ToString());
+			Thread.Sleep(5000);
+			//System.Windows.Input.MouseButton
+			await Connection.SendAsync("SendMouseDown", PeerId, (int)e.ChangedButton);
+		}
+
+		private async void VideoFeed_MouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e) {
+			Thread.Sleep(5000);
+			await Connection.SendAsync("SendMouseUp", PeerId, (int)e.ChangedButton);
+		}
+
+		private async void VideoFeed_MouseScroll(object sender, System.Windows.Input.MouseWheelEventArgs e) {
+			Thread.Sleep(5000);
+			await Connection.SendAsync("SendMouseScroll", PeerId, e.Delta);
+		}
 	}
 }

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.SignalR;
+﻿using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 
@@ -7,10 +8,7 @@ namespace ScreenControlApp.Backend.Hubs {
 	public class ScreenControlHub : Hub {
 		private static readonly Dictionary<string, (string passcode, string shareConnectionId, DateTime arriveTime)> announced = []; //add time to tuple -> check and delete announce if time expires
 		private static readonly Dictionary<string, ConcurrentQueue<byte[]>> streamBuffer = [];
-		//private readonly Dictionary<string, string> connectedHosts = []; //maps sharing->controlling
-		//public async Task SendPacket(string user, string message) {
-		//	await Clients.Client(user).SendAsync("ReceivePacket", user, message);
-		//}
+
 		public void AnnounceShare(string hostUserId, string passcode) {
 			announced.Add(hostUserId, (passcode, Context.ConnectionId!, DateTime.Now));
 		}
@@ -54,7 +52,6 @@ namespace ScreenControlApp.Backend.Hubs {
 			}
 		}
 
-
 		public ChannelReader<byte[]> DownloadFrame(string connectionId, CancellationToken cancellationToken) {
 			var channel = Channel.CreateUnbounded<byte[]>();
 
@@ -65,10 +62,13 @@ namespace ScreenControlApp.Backend.Hubs {
 
 			return channel.Reader;
 		}
-
 		private static async Task WriteItemsAsync(ChannelWriter<byte[]> writer, IClientProxy caller, string connectionId, CancellationToken cancellationToken) {
 			Exception? localException = null;
 			try {
+				if (string.IsNullOrWhiteSpace(connectionId)) {
+					await caller.SendAsync("Error", "No connection id provided", cancellationToken);
+					return;
+				}
 				if (!streamBuffer.TryGetValue(connectionId, out var queue)) {
 					await caller.SendAsync("Error", "Connection not found", cancellationToken);
 					return;
@@ -96,7 +96,22 @@ namespace ScreenControlApp.Backend.Hubs {
 			}
 		}
 
+		public async Task SendKeyboardInput(string connectionId, ushort key) {
+			//await Clients.Client(Context.ConnectionId).SendAsync("ReceiveKeyboardInput", key);
+		}
 
+		public async Task SendMouseDown(string connectionId, int buttonCode) {
+			await Clients.Client(connectionId).SendAsync("ReceiveMouseDown", buttonCode);
+		}
+		public async Task SendMouseUp(string connectionId, int buttonCode) {
+			await Clients.Client(connectionId).SendAsync("ReceiveMouseUp", buttonCode);
+		}
+		public async Task SendMouseMove(string connectionId, double x, double y) {
+			await Clients.Client(connectionId).SendAsync("ReceiveMouseMove", x, y);
+		}
+		public async Task SendMouseScroll(string connectionId, int scrollValue) {
+			await Clients.Client(connectionId).SendAsync("ReceiveMouseScroll", scrollValue);
+		}
 
 
 	}
