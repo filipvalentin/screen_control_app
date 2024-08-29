@@ -15,21 +15,27 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 	/// </summary>
 	public partial class ScreenControllingWindow : Window {
 		private HubConnection Connection { get; set; } = null!;
-		//private bool IsClosed { get; set; }
-		private string User { get; set; }
-		private string Passcode { get; set; }
-		private string? PeerId { get; set; } = null;
-		private new bool IsInitialized { get; set; }
-		private readonly CancellationTokenSource CancellationTokenSource = new();
+		private string User { get; set; } = null!;
+		private string Passcode { get; set; } = null!;
+		private string PeerConnectionId { get; set; } = null!;
+		private double PeerScreenWidth { get; set; }
+		private double PeerScreenHeight { get; set; }
 		private readonly BlockingCollection<MemoryStream> FrameBuffer = new(24 * 5);
+
+		private readonly CancellationTokenSource CancellationTokenSource = new();
+
+		private readonly TaskCompletionSource<string> PeerConnectionIdCompletionSource = new();
+		private readonly TaskCompletionSource<(double, double)> PeerScreenSizeCompletionSource = new();
+		private readonly TaskCompletionSource IsInitializedCompletionSource = new();
+
 		public ScreenControllingWindow(string user, string passcode) {
 			InitializeComponent();
-
+			Image.Width = this.Width;
+			Image.Height=this.Height;
 			User = user;
 			Passcode = passcode;
 
 			this.Closed += (sender, args) => {
-				//IsClosed = true;
 				CancellationTokenSource.Cancel();
 			};
 
@@ -46,10 +52,18 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 
 			await Connection.InvokeAsync("AnnounceControl", User, Passcode);
 
-			_ = Task.Run(RetrieveFrames);
-			_ = Task.Run(DisplayFrames);
+			PeerConnectionId = await PeerConnectionIdCompletionSource.Task;
+			(PeerScreenWidth, PeerScreenHeight) = await PeerScreenSizeCompletionSource.Task;
 
-			IsInitialized = true;
+
+			//var backgroundThread1 = new Thread(async () => await RetrieveFrames()) {
+			//	IsBackground = true
+			//};
+			//backgroundThread1.Start();
+			_ = Task.Factory.StartNew(RetrieveFrames, TaskCreationOptions.LongRunning);
+			_ = Task.Factory.StartNew(DisplayFrames, TaskCreationOptions.LongRunning);
+
+			IsInitializedCompletionSource.SetResult();
 		}
 
 		private async Task InitializeSignalR() {
@@ -62,34 +76,29 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 					await Task.Delay(new Random().Next(0, 5) * 1000);
 					await Connection.StartAsync();
 				};
-
-				Connection.On<string, string>("ReceivePacket", (user, message) => {
-					this.Dispatcher.Invoke(() => {
-						var newMessage = $"control {user}: {message}";
-						MessageBox.Show(newMessage);
-					});
-				});
-
+				//Connection.On<string, string>("ReceivePacket", (user, message) => {
+				//	this.Dispatcher.Invoke(() => {
+				//		var newMessage = $"control {user}: {message}";
+				//		MessageBox.Show(newMessage);
+				//	});
+				//});
 				Connection.On<string>("FailedConnection", (message) => {
 					MessageBox.Show($"Couldn't connect: {message}");
 				});
-
 				Connection.On<string>("ReceiveConnectionToControl", (peerId) => {
-					PeerId = peerId;
+					PeerConnectionIdCompletionSource.SetResult(peerId);
 					this.Dispatcher.Invoke(() => {
 						ConnectionStatus.Content = "Connected";
-
-						//MessageBox.Show($"control received connection {peerId}");
 					});
 				});
-
+				Connection.On<double, double>("ReceiveScreenSize", (double width, double height) => {
+					PeerScreenSizeCompletionSource.SetResult((width, height));
+				});
 				Connection.On<string>("Error", (error) => { MessageBox.Show($"Error: {error}"); });
 
 				await Connection.StartAsync();
 			}
 			catch (Exception ex) {
-				//if (IsClosed)
-				//	CancellationTokenSource.Cancel();
 				MessageBox.Show(ex.Message);
 				CancellationTokenSource.Cancel();
 			}
@@ -97,17 +106,19 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 
 		private async Task RetrieveFrames() {
 			var token = CancellationTokenSource.Token;
+			await IsInitializedCompletionSource.Task;
 			try {
-				while (!IsInitialized) {
-					await Task.Delay(1000);
-				}
+				//while (!IsInitialized) {
+				//	await Task.Delay(1000);
+				//}
+
 				this.Dispatcher.Invoke(() => ConnectingStatusLabel.Content = string.Empty);
 
 				var timer = Stopwatch.StartNew();
 				while (!token.IsCancellationRequested) {
 					timer.Restart();
 
-					var channel = await Connection.StreamAsChannelAsync<byte[]>("DownloadFrame", PeerId, token);
+					var channel = await Connection.StreamAsChannelAsync<byte[]>("DownloadFrame", PeerConnectionId, token);
 					var memoryStream = new MemoryStream();
 					memoryStream.SetLength(0); // Reset the memory stream
 
@@ -153,7 +164,7 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 						RenderFrameBufferLabel.Content = FrameBuffer.Count;
 					});
 					timer.Stop();
-					Dispatcher.Invoke(() => RenderTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
+					Dispatcher.Invoke(() => RenderTimeLabel.Content = timer.ElapsedMilliseconds + "ms + ");
 					await Task.Delay(24);
 				}
 			}
@@ -195,25 +206,36 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 		}
 		//public enum MouseDown
 
-		private void VideoFeed_MouseMove(object sender, System.Windows.Input.MouseEventArgs e) {
-			//e.
+		private async void VideoFeed_MouseMove(object sender, System.Windows.Input.MouseEventArgs e) {
+			if (!IsInitializedCompletionSource.Task.IsCompleted)
+				return;
+
+			var position = e.GetPosition(Image);
+
+			double normalizedX = Math.Clamp(position.X / Image.ActualWidth, 0, 1);
+			double normalizedY = Math.Clamp(position.Y / Image.ActualHeight, 0, 1);
+
+			SWidth.Content = normalizedX;
+			SHeight.Content = normalizedY;
+
+			await Connection.SendAsync("SendMouseMove", PeerConnectionId, normalizedX, normalizedY);
 		}
 
 		private async void VideoFeed_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e) {
 			//MessageBox.Show(e.GetPosition(null).X.ToString());
 			Thread.Sleep(5000);
 			//System.Windows.Input.MouseButton
-			await Connection.SendAsync("SendMouseDown", PeerId, (int)e.ChangedButton);
+			await Connection.SendAsync("SendMouseDown", PeerConnectionId, (int)e.ChangedButton);
 		}
 
 		private async void VideoFeed_MouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e) {
 			Thread.Sleep(5000);
-			await Connection.SendAsync("SendMouseUp", PeerId, (int)e.ChangedButton);
+			await Connection.SendAsync("SendMouseUp", PeerConnectionId, (int)e.ChangedButton);
 		}
 
 		private async void VideoFeed_MouseScroll(object sender, System.Windows.Input.MouseWheelEventArgs e) {
 			Thread.Sleep(5000);
-			await Connection.SendAsync("SendMouseScroll", PeerId, e.Delta);
+			await Connection.SendAsync("SendMouseScroll", PeerConnectionId, e.Delta);
 		}
 	}
 }

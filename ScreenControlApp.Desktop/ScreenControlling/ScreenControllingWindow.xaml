@@ -12,6 +12,8 @@
 		<Label Content="Connecting..." Margin="329,192,359,217" Name="ConnectingStatusLabel"/>
 		<StackPanel Margin="0,47,0,0" Name="controlStackPanel" MouseMove="VideoFeed_MouseMove" MouseDown="VideoFeed_MouseDown" MouseUp="VideoFeed_MouseUp" MouseWheel="VideoFeed_MouseScroll" Background="Transparent">
 			<Image Height="350" Width="750" x:Name="Image"/>
+			<Label Content="Label" Name="SWidth"/>
+			<Label Content="Label" Name="SHeight"/>
 		</StackPanel>
 		<Label Content="Not connected" Name="ConnectionStatus" HorizontalAlignment="Left" Margin="610,10,0,0" VerticalAlignment="Top" RenderTransformOrigin="1.337,-0.583"/>
 		<Label Content="TransferStatus" Name="TransferStatus" HorizontalAlignment="Left" Margin="697,10,0,0" VerticalAlignment="Top" RenderTransformOrigin="1.646,-0.056"/>
@@ -23,4 +25,5 @@
 		<Label Content="" Name="RenderFrameBufferLabel" HorizontalAlignment="Left" Margin="482,12,0,0" VerticalAlignment="Top"/>
 
 	</Grid>
+	
 </Window>

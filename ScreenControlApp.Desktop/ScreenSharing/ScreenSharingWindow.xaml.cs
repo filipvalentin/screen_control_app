@@ -5,8 +5,8 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
 using System.Windows;
+using System.Windows.Forms;
 using static ScreenControlApp.Desktop.ScreenSharing.NativeMethods;
-using static System.Runtime.CompilerServices.RuntimeHelpers;
 using MessageBox = System.Windows.MessageBox;
 
 namespace ScreenControlApp.Desktop.ScreenSharing {
@@ -15,13 +15,22 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 	/// </summary>
 	public partial class ScreenSharingWindow : Window {
 		private HubConnection Connection { get; set; } = null!;
-		//private bool IsClosed { get; set; }
-		private string User { get; set; }
-		private string Passcode { get; set; }
-		private string? PeerId { get; set; } = null;
-		private new bool IsInitialized { get; set; }
+		private string User { get; set; } = null!;
+		private string Passcode { get; set; } = null!;
+		private string PeerConnectionId { get; set; } = null!;
 
 		private readonly CancellationTokenSource CancellationTokenSource = new();
+
+		private readonly TaskCompletionSource<string> PeerConnectionIdCompletionSource = new();
+		private readonly TaskCompletionSource IsInitializedCompletionSource = new();
+
+		int virtualWidth = SystemInformation.VirtualScreen.Width;
+		int virtualHeight = SystemInformation.VirtualScreen.Height;
+		int virtualLeft = SystemInformation.VirtualScreen.Left;
+		int virtualTop = SystemInformation.VirtualScreen.Top;
+
+		private readonly Screen SharedScreen = Screen.PrimaryScreen;
+
 		public ScreenSharingWindow(string user, string passcode) {
 			InitializeComponent();
 
@@ -29,14 +38,16 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 			Passcode = passcode;
 
 			this.Closed += (sender, args) => {
-				//IsClosed = true;
 				CancellationTokenSource.Cancel();
 			};
 
 			_ = Task.Run(InitializeWindowState);
 
+			// Information for each screen
+			//foreach (var screen in screens) {
+			//	Debug.WriteLine($"Screen: {screen.DeviceName}, Bounds: {screen.Bounds}, Primary: {screen.Primary}");
+			//}
 		}
-
 
 		private async Task InitializeWindowState() {
 			await InitializeSignalR();
@@ -48,11 +59,14 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 
 			await Connection.InvokeAsync("AnnounceShare", User, Passcode);
 
-			//_ = Task.Run();
+			PeerConnectionId = await PeerConnectionIdCompletionSource.Task;
 
-			IsInitialized = true;
+			await Connection.InvokeAsync("AnnounceScreenSize", PeerConnectionId, Screen.PrimaryScreen.Bounds.Width, Screen.PrimaryScreen.Bounds.Height); //TODO: CHANGE TO SETTINGS-BASED SCREEN SELECTION
+
+			IsInitializedCompletionSource.SetResult();
+
+			_ = Task.Factory.StartNew(ShareVideoFeed, TaskCreationOptions.LongRunning);
 		}
-
 		private async Task InitializeSignalR() {
 			try {
 				Connection = new HubConnectionBuilder()
@@ -61,15 +75,15 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 
 				Connection.Closed += async (obj) => {
 					await Task.Delay(new Random().Next(0, 5) * 1000);
-					await Connection.StartAsync();
+					await Connection.StartAsync();//TODO: RESET CONNECTION IDS
 				};
 
-				Connection.On<string, string>("ReceivePacket", (user, message) => {
-					this.Dispatcher.Invoke(() => {
-						var newMessage = $"sharing {user}: {message}";
-						MessageBox.Show(newMessage);
-					});
-				});
+				//Connection.On<string, string>("ReceivePacket", (user, message) => {
+				//	this.Dispatcher.Invoke(() => {
+				//		var newMessage = $"sharing {user}: {message}";
+				//		MessageBox.Show(newMessage);
+				//	});
+				//});
 				Connection.On<string>("FailedConnection", (message) => {
 					MessageBox.Show($"Couldn't connect: {message}");
 				});
@@ -77,10 +91,9 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 					MessageBox.Show($"Couldn't transfer: {message}");
 				});
 				Connection.On<string>("ReceiveConnectionToShare", (peerId) => {
-					PeerId = peerId;
+					PeerConnectionIdCompletionSource.SetResult(peerId);
 					this.Dispatcher.Invoke(() => {
 						ConnectionStatus.Content = "Connected";
-
 						//MessageBox.Show($"share received connection {peerId}");
 					});
 				});
@@ -99,7 +112,16 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 			}
 		}
 
-		private void MouseMoveReceived(double x, double y) {
+		private void MouseMoveReceived(double normalizedX, double normalizedY) {
+			int targetX = SharedScreen.Bounds.Left + (int)(normalizedX * SharedScreen.Bounds.Width);
+			int targetY = SharedScreen.Bounds.Top + (int)(normalizedY * SharedScreen.Bounds.Height);
+
+			var inputs = new NativeMethods.INPUT[1];
+			inputs[0].type = INPUT_MOUSE;
+			inputs[0].u.mi.dx = targetX * 65535 / SharedScreen.Bounds.Width;
+			inputs[0].u.mi.dy = targetY * 65535 / SharedScreen.Bounds.Height;
+			inputs[0].u.mi.dwFlags = NativeMethods.MOUSEEVENTF_ABSOLUTE | NativeMethods.MOUSEEVENTF_MOVE;
+			_ = NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(NativeMethods.INPUT)));
 		}
 		private void MouseDownReceived(int buttonCode) {
 			var inputs = new NativeMethods.INPUT[1];
@@ -169,6 +191,46 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 			_ = NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(NativeMethods.INPUT)));
 		}
 
+		private async Task ShareVideoFeed() {
+			var cancellationToken = CancellationTokenSource.Token;
+
+			var bitmap = new Bitmap(System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width,
+									System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height);
+			using var graphics = Graphics.FromImage(bitmap);
+			using var memoryStream = new MemoryStream();
+			try {
+				while (!cancellationToken.IsCancellationRequested) {
+					var timer = Stopwatch.StartNew();
+					CaptureScreen(graphics, bitmap);
+
+					memoryStream.SetLength(0);
+					bitmap.Save(memoryStream, ImageFormat.Jpeg);
+					byte[] imageBytes = memoryStream.ToArray();
+					this.Dispatcher.Invoke(() => { ConnectionStatus.Content = imageBytes.Length; CaptureTimeLabel.Content = timer.ElapsedMilliseconds + "ms"; });
+
+					timer.Restart();
+					var channel = Channel.CreateUnbounded<byte[]>();
+					await Connection.SendAsync("UploadFrame", channel.Reader);
+
+					const int chunkSize = 8192;
+					int offset = 0;
+					while (offset < imageBytes.Length) {
+						int count = Math.Min(chunkSize, imageBytes.Length - offset);
+						var chunk = new byte[count];
+						Array.Copy(imageBytes, offset, chunk, 0, count);
+						await channel.Writer.WriteAsync(chunk);
+						offset += count;
+					}
+					channel.Writer.Complete();
+
+					await channel.Reader.Completion;
+					this.Dispatcher.Invoke(() => TransferTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
+				}
+			}
+			catch (Exception ex) {
+				MessageBox.Show(ex.ToString());
+			}
+		}
 
 		private async void Button_Click(object sender, RoutedEventArgs e) {
 			try {
@@ -180,47 +242,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 		}
 
 		private async void Button_Click_TakeScreenshot(object sender, RoutedEventArgs e) {
-			var cancellationToken = CancellationTokenSource.Token;
 
-			_ = Task.Run(async () => {
-				var bitmap = new Bitmap(System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width,
-										System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height);
-				using var graphics = Graphics.FromImage(bitmap);
-				using var memoryStream = new MemoryStream();
-
-				try {
-					while (!cancellationToken.IsCancellationRequested) {
-						var timer = Stopwatch.StartNew();
-						CaptureScreen(graphics, bitmap);
-
-						memoryStream.SetLength(0);
-						bitmap.Save(memoryStream, ImageFormat.Jpeg);
-						byte[] imageBytes = memoryStream.ToArray();
-						this.Dispatcher.Invoke(() => { ConnectionStatus.Content = imageBytes.Length; CaptureTimeLabel.Content = timer.ElapsedMilliseconds + "ms"; });
-
-						timer.Restart();
-						var channel = Channel.CreateUnbounded<byte[]>();
-						await Connection.SendAsync("UploadFrame", channel.Reader);
-
-						const int chunkSize = 8192;
-						int offset = 0;
-						while (offset < imageBytes.Length) {
-							int count = Math.Min(chunkSize, imageBytes.Length - offset);
-							var chunk = new byte[count];
-							Array.Copy(imageBytes, offset, chunk, 0, count);
-							await channel.Writer.WriteAsync(chunk);
-							offset += count;
-						}
-						channel.Writer.Complete();
-
-						await channel.Reader.Completion;
-						this.Dispatcher.Invoke(() => TransferTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
-					}
-				}
-				catch (Exception ex) {
-					MessageBox.Show(ex.ToString());
-				}
-			});
 		}
 
 
