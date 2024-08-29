@@ -13,7 +13,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 	/// <summary>
 	/// Interaction logic for ScreenSharingWindow.xaml
 	/// </summary>
-	public partial class ScreenSharingWindow : Window {
+	public partial class ScreenSharingWindow : Window, IDisposable {
 		private HubConnection Connection { get; set; } = null!;
 		private string User { get; set; } = null!;
 		private string Passcode { get; set; } = null!;
@@ -21,7 +21,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 
 		private readonly CancellationTokenSource CancellationTokenSource = new();
 
-		private readonly TaskCompletionSource<string> PeerConnectionIdCompletionSource = new();
+		private readonly TaskCompletionSource<string> PeerConnectionIdCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		private readonly TaskCompletionSource IsInitializedCompletionSource = new();
 
 		int virtualWidth = SystemInformation.VirtualScreen.Width;
@@ -39,6 +39,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 
 			this.Closed += (sender, args) => {
 				CancellationTokenSource.Cancel();
+				Dispose();
 			};
 
 			_ = Task.Run(InitializeWindowState);
@@ -245,7 +246,6 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 
 		}
 
-
 		private static void CaptureScreen(Graphics graphics, Bitmap bitmap) {
 			graphics.CopyFromScreen(System.Windows.Forms.Screen.PrimaryScreen.Bounds.X,
 									System.Windows.Forms.Screen.PrimaryScreen.Bounds.Y,
@@ -307,8 +307,10 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 		//	//Debug.WriteLine(Marshal.GetLastWin32Error());
 		//}
 
+		public void Dispose() {
+			//CancellationTokenSource.Cancel();
+			CancellationTokenSource.Dispose();
+			GC.SuppressFinalize(this);
+		}
 	}
 }
-
-
-

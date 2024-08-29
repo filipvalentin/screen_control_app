@@ -13,7 +13,7 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 	/// <summary>
 	/// Interaction logic for ScreenControllingWindow.xaml
 	/// </summary>
-	public partial class ScreenControllingWindow : Window {
+	public partial class ScreenControllingWindow : Window , IDisposable{
 		private HubConnection Connection { get; set; } = null!;
 		private string User { get; set; } = null!;
 		private string Passcode { get; set; } = null!;
@@ -24,8 +24,8 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 
 		private readonly CancellationTokenSource CancellationTokenSource = new();
 
-		private readonly TaskCompletionSource<string> PeerConnectionIdCompletionSource = new();
-		private readonly TaskCompletionSource<(double, double)> PeerScreenSizeCompletionSource = new();
+		private readonly TaskCompletionSource<string> PeerConnectionIdCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		private readonly TaskCompletionSource<(double, double)> PeerScreenSizeCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		private readonly TaskCompletionSource IsInitializedCompletionSource = new();
 
 		public ScreenControllingWindow(string user, string passcode) {
@@ -37,6 +37,7 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 
 			this.Closed += (sender, args) => {
 				CancellationTokenSource.Cancel();
+				Dispose();
 			};
 
 			_ = Task.Run(InitializeWindowState);
@@ -236,6 +237,11 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 		private async void VideoFeed_MouseScroll(object sender, System.Windows.Input.MouseWheelEventArgs e) {
 			Thread.Sleep(5000);
 			await Connection.SendAsync("SendMouseScroll", PeerConnectionId, e.Delta);
+		}
+
+		public void Dispose() {
+			CancellationTokenSource.Dispose();
+			GC.SuppressFinalize(this);
 		}
 	}
 }
