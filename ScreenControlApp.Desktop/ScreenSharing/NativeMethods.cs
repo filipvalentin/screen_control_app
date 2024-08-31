@@ -55,6 +55,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 		public const uint MOUSEEVENTF_WHEEL = 0x0800;
 		public const uint MOUSEEVENTF_HWHEEL = 0x1000;
 		public const uint MOUSEEVENTF_ABSOLUTE = 0x8000;
+		public const uint MOUSEEVENTF_VIRTUALDESK = 0x4000;
 		// Constants for extended mouse buttons
 		public const int XBUTTON1 = 0x01;
 		public const int XBUTTON2 = 0x02;

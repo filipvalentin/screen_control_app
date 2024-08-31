@@ -216,26 +216,21 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 			double normalizedX = Math.Clamp(position.X / Image.ActualWidth, 0, 1);
 			double normalizedY = Math.Clamp(position.Y / Image.ActualHeight, 0, 1);
 
-			SWidth.Content = normalizedX;
-			SHeight.Content = normalizedY;
+			//SWidth.Content = normalizedX;
+			//SHeight.Content = normalizedY;
 
 			await Connection.SendAsync("SendMouseMove", PeerConnectionId, normalizedX, normalizedY);
 		}
 
 		private async void VideoFeed_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e) {
-			//MessageBox.Show(e.GetPosition(null).X.ToString());
-			Thread.Sleep(5000);
-			//System.Windows.Input.MouseButton
 			await Connection.SendAsync("SendMouseDown", PeerConnectionId, (int)e.ChangedButton);
 		}
 
 		private async void VideoFeed_MouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e) {
-			Thread.Sleep(5000);
 			await Connection.SendAsync("SendMouseUp", PeerConnectionId, (int)e.ChangedButton);
 		}
 
 		private async void VideoFeed_MouseScroll(object sender, System.Windows.Input.MouseWheelEventArgs e) {
-			Thread.Sleep(5000);
 			await Connection.SendAsync("SendMouseScroll", PeerConnectionId, e.Delta);
 		}
 

@@ -10,8 +10,8 @@
 
 		<Button Content="Connect" HorizontalAlignment="Left" Margin="218,10,0,0" VerticalAlignment="Top" Click="Button_Click"/>
 		<Label Content="Connecting..." Margin="329,192,359,217" Name="ConnectingStatusLabel"/>
-		<StackPanel Margin="0,47,0,0" Name="controlStackPanel" MouseMove="VideoFeed_MouseMove" MouseDown="VideoFeed_MouseDown" MouseUp="VideoFeed_MouseUp" MouseWheel="VideoFeed_MouseScroll" Background="Transparent">
-			<Image Height="350" Width="750" x:Name="Image"/>
+		<StackPanel Margin="0,47,0,0" Name="controlStackPanel"  MouseDown="VideoFeed_MouseDown" MouseUp="VideoFeed_MouseUp" MouseWheel="VideoFeed_MouseScroll" Background="Transparent">
+			<Image Height="350" Width="750" x:Name="Image" MouseMove="VideoFeed_MouseMove"/>
 			<Label Content="Label" Name="SWidth"/>
 			<Label Content="Label" Name="SHeight"/>
 		</StackPanel>

@@ -29,7 +29,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 		int virtualLeft = SystemInformation.VirtualScreen.Left;
 		int virtualTop = SystemInformation.VirtualScreen.Top;
 
-		private readonly Screen SharedScreen = Screen.PrimaryScreen;
+		private readonly Screen SharedScreen = Screen.AllScreens[0];
 
 		public ScreenSharingWindow(string user, string passcode) {
 			InitializeComponent();
@@ -119,9 +119,9 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 
 			var inputs = new NativeMethods.INPUT[1];
 			inputs[0].type = INPUT_MOUSE;
-			inputs[0].u.mi.dx = targetX * 65535 / SharedScreen.Bounds.Width;
-			inputs[0].u.mi.dy = targetY * 65535 / SharedScreen.Bounds.Height;
-			inputs[0].u.mi.dwFlags = NativeMethods.MOUSEEVENTF_ABSOLUTE | NativeMethods.MOUSEEVENTF_MOVE;
+			inputs[0].u.mi.dx = targetX * 65535 / SystemInformation.VirtualScreen.Width;
+			inputs[0].u.mi.dy = targetY * 65535 / SystemInformation.VirtualScreen.Height;
+			inputs[0].u.mi.dwFlags = NativeMethods.MOUSEEVENTF_ABSOLUTE | NativeMethods.MOUSEEVENTF_MOVE | MOUSEEVENTF_VIRTUALDESK;
 			_ = NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(NativeMethods.INPUT)));
 		}
 		private void MouseDownReceived(int buttonCode) {
