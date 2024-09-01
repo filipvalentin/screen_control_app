@@ -9,6 +9,7 @@ using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using static ScreenControlApp.Desktop.ScreenSharing.NativeMethods;
 
 namespace ScreenControlApp.Desktop {
 	/// <summary>
@@ -23,6 +24,7 @@ namespace ScreenControlApp.Desktop {
 			shareHost_HostId.Text = "123-456-789";
 			shareHost_Passcode.Text = "1234";
 		}
+
 
 		private void ControlHost_Button_Click(object sender, RoutedEventArgs e) {
 			Window window = new ScreenControllingWindow(controlHost_HostId.Text, controlHost_Passcode.Text);
