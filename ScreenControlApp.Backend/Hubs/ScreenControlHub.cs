@@ -110,11 +110,20 @@ namespace ScreenControlApp.Backend.Hubs {
 		public async Task SendMouseUp(string connectionId, int buttonCode) {
 			await Clients.Client(connectionId).SendAsync("ReceiveMouseUp", buttonCode);
 		}
+
 		public async Task SendMouseMove(string connectionId, double x, double y) {
 			await Clients.Client(connectionId).SendAsync("ReceiveMouseMove", x, y);
 		}
+
 		public async Task SendMouseScroll(string connectionId, int scrollValue) {
 			await Clients.Client(connectionId).SendAsync("ReceiveMouseScroll", scrollValue);
+		}
+
+		public async Task SendKeyDown(string connectionId, int keyCode) {
+			await Clients.Client(connectionId).SendAsync("ReceiveKeyDown", keyCode);
+		}
+		public async Task SendKeyUp(string connectionId, int keyCode) {
+			await Clients.Client(connectionId).SendAsync("ReceiveKeyUp", keyCode);
 		}
 
 

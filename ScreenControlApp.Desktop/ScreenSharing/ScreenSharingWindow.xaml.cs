@@ -29,7 +29,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 		int virtualLeft = SystemInformation.VirtualScreen.Left;
 		int virtualTop = SystemInformation.VirtualScreen.Top;
 
-		private readonly Screen SharedScreen = Screen.AllScreens[1];
+		private readonly Screen SharedScreen = Screen.PrimaryScreen;
 
 		public ScreenSharingWindow(string user, string passcode) {
 			InitializeComponent();
@@ -102,6 +102,8 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 				Connection.On<int>("ReceiveMouseDown", MouseDownReceived);
 				Connection.On<int>("ReceiveMouseUp", MouseUpReceived);
 				Connection.On<int>("ReceiveMouseScroll", MouseScrollReceived);
+				Connection.On<int>("ReceiveKeyDown", KeyDownReceived);
+				Connection.On<int>("ReceiveKeyUp", KeyUpReceived);
 				await Connection.StartAsync();
 
 				//test.Text = Connection.ConnectionId;
@@ -192,6 +194,25 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 				dwFlags = MOUSEEVENTF_WHEEL,
 				mouseData = scrollValue
 			};
+			_ = NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(NativeMethods.INPUT)));
+		}
+
+		private async void KeyDownReceived(int keycode) {
+			Thread.Sleep(5000);
+			var inputs = new NativeMethods.INPUT[1];
+			inputs[0].type = INPUT_KEYBOARD;
+			inputs[0].u.ki.wVk = (ushort)keycode;
+			inputs[0].u.ki.dwFlags = KEYEVENTF_KEYDOWN;
+			inputs[0].u.ki.dwExtraInfo = NativeMethods.GetMessageExtraInfo();
+			_ = NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(NativeMethods.INPUT)));
+		}
+		private void KeyUpReceived(int keycode) {
+			Thread.Sleep(5000);
+			var inputs = new NativeMethods.INPUT[1];4766
+			inputs[0].type = INPUT_KEYBOARD;
+			inputs[0].u.ki.wVk = (ushort)keycode;
+			inputs[0].u.ki.dwFlags = KEYEVENTF_KEYUP;
+			inputs[0].u.ki.dwExtraInfo = NativeMethods.GetMessageExtraInfo();
 			_ = NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(NativeMethods.INPUT)));
 		}
 

@@ -8,12 +8,13 @@ using MessageBox = System.Windows.MessageBox;
 using System.Windows.Threading;
 using System.Diagnostics;
 using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
 
 namespace ScreenControlApp.Desktop.ScreenControlling {
 	/// <summary>
 	/// Interaction logic for ScreenControllingWindow.xaml
 	/// </summary>
-	public partial class ScreenControllingWindow : Window , IDisposable{
+	public partial class ScreenControllingWindow : Window, IDisposable {
 		private HubConnection Connection { get; set; } = null!;
 		private string User { get; set; } = null!;
 		private string Passcode { get; set; } = null!;
@@ -30,8 +31,8 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 
 		public ScreenControllingWindow(string user, string passcode) {
 			InitializeComponent();
-			Image.Width = this.Width;
-			Image.Height=this.Height;
+			//Image.Width = this.Width;
+			//Image.Height=this.Height;
 			User = user;
 			Passcode = passcode;
 
@@ -222,6 +223,81 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 			await Connection.SendAsync("SendMouseMove", PeerConnectionId, normalizedX, normalizedY);
 		}
 
+		public class KeyboardSimulator {
+			[StructLayout(LayoutKind.Sequential)]
+			private struct INPUT {
+				public uint type;
+				public InputUnion u;
+			}
+
+			[StructLayout(LayoutKind.Explicit)]
+			private struct InputUnion {
+				[FieldOffset(0)] public MOUSEINPUT mi;
+				[FieldOffset(0)] public KEYBDINPUT ki;
+				[FieldOffset(0)] public HARDWAREINPUT hi;
+			}
+
+			[StructLayout(LayoutKind.Sequential)]
+			private struct MOUSEINPUT {
+				public int dx;
+				public int dy;
+				public uint mouseData;
+				public uint dwFlags;
+				public uint time;
+				public IntPtr dwExtraInfo;
+			}
+
+			[StructLayout(LayoutKind.Sequential)]
+			private struct KEYBDINPUT {
+				public ushort wVk;
+				public ushort wScan;
+				public uint dwFlags;
+				public uint time;
+				public IntPtr dwExtraInfo;
+			}
+
+			[StructLayout(LayoutKind.Sequential)]
+			private struct HARDWAREINPUT {
+				public uint uMsg;
+				public ushort wParamL;
+				public ushort wParamH;
+			}
+
+			private const uint INPUT_KEYBOARD = 1;
+			private const uint KEYEVENTF_KEYUP = 0x0002;
+
+			[DllImport("user32.dll", SetLastError = true)]
+			private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+			public static void SendKey(ushort keyCode, int duration = 100) {
+				INPUT[] inputs = new INPUT[2];
+
+				// Key down event
+				inputs[0].type = INPUT_KEYBOARD;
+				inputs[0].u.ki.wVk = keyCode;
+				inputs[0].u.ki.wScan = 0;
+				inputs[0].u.ki.dwFlags = 0;
+				inputs[0].u.ki.time = 0;
+				inputs[0].u.ki.dwExtraInfo = IntPtr.Zero;
+
+				// Key up event
+				inputs[1].type = INPUT_KEYBOARD;
+				inputs[1].u.ki.wVk = keyCode;
+				inputs[1].u.ki.wScan = 0;
+				inputs[1].u.ki.dwFlags = KEYEVENTF_KEYUP;
+				inputs[1].u.ki.time = 0;
+				inputs[1].u.ki.dwExtraInfo = IntPtr.Zero;
+
+				// Send key down event
+				SendInput(1, new INPUT[] { inputs[0] }, Marshal.SizeOf(typeof(INPUT)));
+
+				// Wait for the specified duration
+				System.Threading.Thread.Sleep(duration);
+
+				// Send key up event
+				SendInput(1, new INPUT[] { inputs[1] }, Marshal.SizeOf(typeof(INPUT)));
+			}
+		}
 		private async void VideoFeed_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e) {
 			await Connection.SendAsync("SendMouseDown", PeerConnectionId, (int)e.ChangedButton);
 		}
@@ -234,9 +310,23 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 			await Connection.SendAsync("SendMouseScroll", PeerConnectionId, e.Delta);
 		}
 
+		private async void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e) {
+			if (!IsInitializedCompletionSource.Task.IsCompleted) return;
+			await Connection.SendAsync("SendKeyDown", PeerConnectionId, (int)e.Key);
+		}
+
+		private async void Window_KeyUp(object sender, System.Windows.Input.KeyEventArgs e) {
+			if (!IsInitializedCompletionSource.Task.IsCompleted) return;
+			await Connection.SendAsync("SendKeyUp", PeerConnectionId, (int)e.Key);
+		}
+
 		public void Dispose() {
 			CancellationTokenSource.Dispose();
 			GC.SuppressFinalize(this);
+		}
+
+		private void Window_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e) {
+			KeyboardSimulator.SendKey(0x41, 10000);
 		}
 	}
 }
