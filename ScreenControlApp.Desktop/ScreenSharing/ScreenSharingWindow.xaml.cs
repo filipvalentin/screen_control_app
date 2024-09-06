@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
+using ScreenControlApp.Desktop.Common.Settings;
 using System.Diagnostics;
 using System.Drawing.Imaging;
 using System.IO;
@@ -15,6 +16,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 	/// Interaction logic for ScreenSharingWindow.xaml
 	/// </summary>
 	public partial class ScreenSharingWindow : Window, IDisposable {
+		private ApplicationSettings Settings { get; set; }
 		private HubConnection Connection { get; set; } = null!;
 		private string User { get; set; } = null!;
 		private string Passcode { get; set; } = null!;
@@ -32,9 +34,10 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 
 		private readonly Screen SharedScreen = Screen.PrimaryScreen;
 
-		public ScreenSharingWindow(string user, string passcode) {
+		public ScreenSharingWindow(ApplicationSettings settings, string user, string passcode) {
 			InitializeComponent();
 
+			Settings = settings;
 			User = user;
 			Passcode = passcode;
 
@@ -72,7 +75,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 		private async Task InitializeSignalR() {
 			try {
 				Connection = new HubConnectionBuilder()
-					.WithUrl("http://localhost:5026/screenControlHub")
+					.WithUrl(Settings.ServerAddress)
 					.Build();
 
 				Connection.Closed += async (obj) => {
