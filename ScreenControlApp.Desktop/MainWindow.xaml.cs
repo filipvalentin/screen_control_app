@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using static ScreenControlApp.Desktop.ScreenSharing.NativeMethods;
+using System.Windows.Media.Imaging;
 
 namespace ScreenControlApp.Desktop {
 	/// <summary>
@@ -44,10 +45,23 @@ namespace ScreenControlApp.Desktop {
 			};
 		}
 
-		private void StackPanel_MouseMove(object sender, System.Windows.Input.MouseEventArgs e) {
-			//SWidth.Content
-			SWidth.Content = e.GetPosition(null).X;
-			SHeight.Content = e.GetPosition(null).Y;
+		private void SaveSettings_Button_Click(object sender, RoutedEventArgs e) {
+
+		}
+
+		private static bool IsSettingsPageDisplayed = false;
+		private void NavBar_SettingsButton_Click(object sender, RoutedEventArgs e) {
+			if (!IsSettingsPageDisplayed) {
+				SCA_Hub_Controls_Panel.Visibility = Visibility.Collapsed;
+				SCA_Hub_Settings_Panel.Visibility = Visibility.Visible;
+				NavBar_SettingsButton_Image.Source = new BitmapImage(new Uri(@"pack://application:,,,/ScreenControlApp.Desktop;component/Images/back.png"));
+			}
+			else {
+				SCA_Hub_Controls_Panel.Visibility = Visibility.Visible;
+				SCA_Hub_Settings_Panel.Visibility = Visibility.Collapsed;
+				NavBar_SettingsButton_Image.Source = new BitmapImage(new Uri(@"pack://application:,,,/ScreenControlApp.Desktop;component/Images/cog.png"));
+			}
+			IsSettingsPageDisplayed = !IsSettingsPageDisplayed;
 		}
 	}
 }

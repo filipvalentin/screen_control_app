@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.InteropServices;
+using System.Windows.Input;
 
 namespace ScreenControlApp.Desktop.ScreenSharing {
 	class NativeMethods {
@@ -38,6 +39,11 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 			public uint dwFlags;
 			public uint time;
 			public UIntPtr dwExtraInfo;
+		}
+
+		public static ushort MapKeyToVirtualKey(Key key) {
+			// Convert WPF key to Win32 virtual key
+			return (ushort)KeyInterop.VirtualKeyFromKey(key);
 		}
 
 		public const int INPUT_MOUSE = 0;

@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Channels;
 using System.Windows;
 using System.Windows.Forms;
+using System.Windows.Input;
 using static ScreenControlApp.Desktop.ScreenSharing.NativeMethods;
 using MessageBox = System.Windows.MessageBox;
 
@@ -79,12 +80,6 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 					await Connection.StartAsync();//TODO: RESET CONNECTION IDS
 				};
 
-				//Connection.On<string, string>("ReceivePacket", (user, message) => {
-				//	this.Dispatcher.Invoke(() => {
-				//		var newMessage = $"sharing {user}: {message}";
-				//		MessageBox.Show(newMessage);
-				//	});
-				//});
 				Connection.On<string>("FailedConnection", (message) => {
 					MessageBox.Show($"Couldn't connect: {message}");
 				});
@@ -95,7 +90,6 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 					PeerConnectionIdCompletionSource.SetResult(peerId);
 					this.Dispatcher.Invoke(() => {
 						ConnectionStatus.Content = "Connected";
-						//MessageBox.Show($"share received connection {peerId}");
 					});
 				});
 				Connection.On<double, double>("ReceiveMouseMove", MouseMoveReceived);
@@ -106,11 +100,8 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 				Connection.On<int>("ReceiveKeyUp", KeyUpReceived);
 				await Connection.StartAsync();
 
-				//test.Text = Connection.ConnectionId;
 			}
 			catch (Exception ex) {
-				//if (IsClosed)
-				//	return;
 				MessageBox.Show(ex.Message);
 			}
 		}
@@ -198,19 +189,17 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 		}
 
 		private async void KeyDownReceived(int keycode) {
-			Thread.Sleep(5000);
 			var inputs = new NativeMethods.INPUT[1];
 			inputs[0].type = INPUT_KEYBOARD;
-			inputs[0].u.ki.wVk = (ushort)keycode;
+			inputs[0].u.ki.wVk = NativeMethods.MapKeyToVirtualKey((Key)keycode);
 			inputs[0].u.ki.dwFlags = KEYEVENTF_KEYDOWN;
 			inputs[0].u.ki.dwExtraInfo = NativeMethods.GetMessageExtraInfo();
 			_ = NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(NativeMethods.INPUT)));
 		}
 		private void KeyUpReceived(int keycode) {
-			Thread.Sleep(5000);
-			var inputs = new NativeMethods.INPUT[1];4766
+			var inputs = new NativeMethods.INPUT[1];
 			inputs[0].type = INPUT_KEYBOARD;
-			inputs[0].u.ki.wVk = (ushort)keycode;
+			inputs[0].u.ki.wVk = NativeMethods.MapKeyToVirtualKey((Key)keycode);
 			inputs[0].u.ki.dwFlags = KEYEVENTF_KEYUP;
 			inputs[0].u.ki.dwExtraInfo = NativeMethods.GetMessageExtraInfo();
 			_ = NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(NativeMethods.INPUT)));
