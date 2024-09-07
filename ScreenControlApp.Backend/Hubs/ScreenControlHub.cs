@@ -1,10 +1,8 @@
-﻿using Microsoft.AspNetCore.DataProtection.KeyManagement;
-using Microsoft.AspNetCore.SignalR;
+﻿using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 
 namespace ScreenControlApp.Backend.Hubs {
-
 	public class ScreenControlHub : Hub {
 		private static readonly Dictionary<string, (string passcode, string shareConnectionId, DateTime arriveTime)> announced = []; //add time to tuple -> check and delete announce if time expires
 		private static readonly Dictionary<string, ConcurrentQueue<byte[]>> streamBuffer = [];
@@ -100,10 +98,6 @@ namespace ScreenControlApp.Backend.Hubs {
 			}
 		}
 
-		public async Task SendKeyboardInput(string connectionId, ushort key) {
-			//await Clients.Client(Context.ConnectionId).SendAsync("ReceiveKeyboardInput", key);
-		}
-
 		public async Task SendMouseDown(string connectionId, int buttonCode) {
 			await Clients.Client(connectionId).SendAsync("ReceiveMouseDown", buttonCode);
 		}
@@ -125,11 +119,5 @@ namespace ScreenControlApp.Backend.Hubs {
 		public async Task SendKeyUp(string connectionId, int keyCode) {
 			await Clients.Client(connectionId).SendAsync("ReceiveKeyUp", keyCode);
 		}
-
-
 	}
-
-
-
-
 }

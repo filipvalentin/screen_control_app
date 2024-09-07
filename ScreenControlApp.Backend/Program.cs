@@ -1,4 +1,3 @@
-
 using ScreenControlApp.Backend.Hubs;
 
 namespace ScreenControlApp.Backend {
