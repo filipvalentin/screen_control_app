@@ -6,7 +6,6 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
 using System.Windows;
-using System.Windows.Forms;
 using System.Windows.Input;
 using static ScreenControlApp.Desktop.ScreenSharing.NativeMethods;
 using MessageBox = System.Windows.MessageBox;

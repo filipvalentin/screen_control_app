@@ -33,7 +33,6 @@
 
 			<Label Content="Render frame buffer:" />
 			<Label Content="" Name="RenderFrameBufferLabel" />
-
 		</StackPanel>
 
 		<Grid Name="controlStackPanel" 

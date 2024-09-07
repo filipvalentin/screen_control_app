@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
-using System.Drawing.Imaging;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -8,7 +7,6 @@ using MessageBox = System.Windows.MessageBox;
 using System.Windows.Threading;
 using System.Diagnostics;
 using System.Collections.Concurrent;
-using System.Runtime.InteropServices;
 using ScreenControlApp.Desktop.Common.Settings;
 
 namespace ScreenControlApp.Desktop.ScreenControlling {

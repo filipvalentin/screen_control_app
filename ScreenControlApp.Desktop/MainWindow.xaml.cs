@@ -1,15 +1,6 @@
-﻿using System.Diagnostics;
-using System.Runtime.InteropServices;
-using System.Windows;
-using System.Windows.Forms;
+﻿using System.Windows;
 using ScreenControlApp.Desktop.ScreenControlling;
 using ScreenControlApp.Desktop.ScreenSharing;
-
-using System;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
-using System.Windows.Forms;
-using static ScreenControlApp.Desktop.ScreenSharing.NativeMethods;
 using System.Windows.Media.Imaging;
 using ScreenControlApp.Desktop.Common.Settings;
 using ScreenControlApp.Desktop.Common;
@@ -19,8 +10,7 @@ namespace ScreenControlApp.Desktop {
 	/// Interaction logic for MainWindow.xaml
 	/// </summary>
 	public partial class MainWindow : Window {
-
-		private ApplicationSettings Settings { get; set; }
+		private ApplicationSettings Settings { get; set; } = null!;
 
 		public MainWindow() {
 			InitializeComponent();
@@ -28,6 +18,8 @@ namespace ScreenControlApp.Desktop {
 
 			shareHost_HostId.Text = "123-456-789";
 			shareHost_Passcode.Text = "1234";
+			var a = new QuickControlsWindow();
+			a.Show();
 		}
 
 
@@ -55,6 +47,7 @@ namespace ScreenControlApp.Desktop {
 			if (!IsSettingsPageDisplayed) {
 				SCA_Hub_Controls_Panel.Visibility = Visibility.Collapsed;//TODO:Rename panels to mainpanel
 				SCA_Hub_Settings_Panel.Visibility = Visibility.Visible;
+				Settings_Panel_SavedSettings_Label.Visibility = Visibility.Collapsed;
 				NavBar_SettingsButton_Image.Source = new BitmapImage(new Uri(@"pack://application:,,,/ScreenControlApp.Desktop;component/Images/back.png"));
 			}
 			else {
@@ -89,7 +82,13 @@ namespace ScreenControlApp.Desktop {
 		}
 		private void PopulateSettings() {
 			Settings_Panel_ServerAddress_TextBox.Text = Settings.ServerAddress;
-			Settings_Panel_ScreenSelector_ComboBox.SelectedIndex = Settings.PreferredScreenId;
+			if (Screen.AllScreens.Length - 1 < Settings.PreferredScreenId) {
+				var screenSelections = (List<string>)Settings_Panel_ScreenSelector_ComboBox.ItemsSource;
+				int index = screenSelections.FindIndex(screenSelection => screenSelection.Contains("Primary"));
+				Settings_Panel_ScreenSelector_ComboBox.SelectedIndex = Settings.PreferredScreenId = index == -1 ? 0 : index;
+			}
+			else
+				Settings_Panel_ScreenSelector_ComboBox.SelectedIndex = Settings.PreferredScreenId;
 		}
 
 		private void SetUpDisplayInformation() {
@@ -103,6 +102,7 @@ namespace ScreenControlApp.Desktop {
 			try {
 				var loader = new ApplicationSettingsLoader();
 				loader.Save(Settings, "settings.json");
+				Settings_Panel_SavedSettings_Label.Visibility = Visibility.Visible;
 			}
 			catch (Exception ex) {
 				System.Windows.MessageBox.Show(ex.Message);
