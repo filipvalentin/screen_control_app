@@ -29,19 +29,19 @@
 					<Label Content="Control a host"/>
 					<Separator/>
 					<Label Content="Host"/>
-					<TextBox Name="controlHost_HostId" Margin="5" Text="123-456-789"/>
+					<TextBox Name="ControllingSide_HostId_TextBox" Margin="5" Text="123-456-789"/>
 					<Label Content="Passcode"/>
-					<TextBox Name="controlHost_Passcode" Margin="5" Text="1234"/>
+					<TextBox Name="ControllingSide_Passcode_TextBox" Margin="5" Text="1234"/>
 					<Button Click="ControlHost_Button_Click">Connect</Button>
 				</StackPanel>
 				<StackPanel HorizontalAlignment="Right" Background="LightGray" Width="150">
 					<Label Content="Share control"/>
 					<Separator/>
 					<Label Content="Host"/>
-					<TextBox Name="shareHost_HostId" Margin="5" />
+					<TextBox Name="SharingSide_HubId_TextBox" Margin="5" />
 
 					<Label Content="Passcode"/>
-					<TextBox Name="shareHost_Passcode" Margin="5" />
+					<TextBox Name="SharingSide_Passcode_TextBox" Margin="5" />
 
 					<Button Click="ShareHost_Button_Click">Share control</Button>
 				</StackPanel>
@@ -61,6 +61,15 @@
 
 					<Label Content="Server address" Grid.Column="0"/>
 					<TextBox Name="Settings_Panel_ServerAddress_TextBox" Margin="5" HorizontalAlignment="Stretch" Grid.Column="1"/>
+				</Grid>
+				<Grid>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="auto"/>
+						<ColumnDefinition Width="*"/>
+					</Grid.ColumnDefinitions>
+
+					<Label Content="SignalR Hub name" Grid.Column="0"/>
+					<TextBox Name="Settings_Panel_HubName_TextBox" Margin="5" HorizontalAlignment="Stretch" Grid.Column="1"/>
 				</Grid>
 
 				<Grid>
