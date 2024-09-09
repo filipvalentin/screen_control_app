@@ -19,12 +19,13 @@
 			</Grid.ColumnDefinitions>
 
 			<DockPanel Grid.Column="0" VerticalAlignment="Center" Margin="5">
-				<!--<Label Content="0" Name="ConnectionStatus"  />-->
-				<Label Content="C:" ToolTip="Capture time. The time it takes the program to capture one frame"/>
-				<Label Content="20ms" Name="CaptureTimeLabel" ToolTip="Capture time. The time it takes the program to capture one frame"/>
+				<Ellipse x:Name="StatusIndicator" Width="10" Height="10" Margin="5,0"  Fill="Red" ToolTip="Connection status: Not connected"/>
 				
-				<Label Content="T:" ToolTip="Tranfer time. The time it takes the program to send a frame to the server."/>
-				<Label Content="10ms" Name="TransferTimeLabel"  ToolTip="Tranfer time The time it takes the program to send a frame to the server."/>
+				<Label Content="C:" ToolTip="Capture time: the time it takes the program to capture one frame"/>
+				<Label Content="0ms" Name="CaptureTimeLabel" ToolTip="Capture time: the time it takes the program to capture one frame"/>
+				
+				<Label Content="T:" ToolTip="Tranfer time: the time it takes the program to send a frame to the server."/>
+				<Label Content="0ms" Name="TransferTimeLabel"  ToolTip="Tranfer time: the time it takes the program to send a frame to the server."/>
 			</DockPanel>
 			<DockPanel Grid.Column="1"  HorizontalAlignment="Right">
 				<Button Content="Disconnect" Margin="5,0" Padding="5" Click="Disconnect_Button_Click" VerticalAlignment="Center" Background="IndianRed"/>

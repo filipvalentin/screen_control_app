@@ -8,30 +8,26 @@ using System.Windows.Threading;
 using System.Diagnostics;
 using System.Collections.Concurrent;
 using ScreenControlApp.Desktop.Common.Settings;
+using System.Windows.Media;
 
 namespace ScreenControlApp.Desktop.ScreenControlling {
-	/// <summary>
-	/// Interaction logic for ScreenControllingWindow.xaml
-	/// </summary>
+
 	public partial class ScreenControllingWindow : Window, IDisposable {
 		private ApplicationSettings Settings { get; set; }
 		private HubConnection Connection { get; set; } = null!;
 		private string User { get; set; } = null!;
 		private string Passcode { get; set; } = null!;
 		private string PeerConnectionId { get; set; } = null!;
-		private double PeerScreenWidth { get; set; }
-		private double PeerScreenHeight { get; set; }
 		private readonly BlockingCollection<MemoryStream> FrameBuffer = new(24 * 5);
 
 		private readonly CancellationTokenSource CancellationTokenSource = new();
 
 		private readonly TaskCompletionSource<string> PeerConnectionIdCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		private readonly TaskCompletionSource<(double, double)> PeerScreenSizeCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		private readonly TaskCompletionSource IsInitializedCompletionSource = new();
 
-		public ScreenControllingWindow(ApplicationSettings settings,string user, string passcode) {
+		public ScreenControllingWindow(ApplicationSettings settings, string user, string passcode) {
 			InitializeComponent();
-			
+
 			Settings = settings;
 			User = user;
 			Passcode = passcode;
@@ -55,13 +51,7 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 			await Connection.InvokeAsync("AnnounceControl", User, Passcode);
 
 			PeerConnectionId = await PeerConnectionIdCompletionSource.Task;
-			(PeerScreenWidth, PeerScreenHeight) = await PeerScreenSizeCompletionSource.Task;
 
-
-			//var backgroundThread1 = new Thread(async () => await RetrieveFrames()) {
-			//	IsBackground = true
-			//};
-			//backgroundThread1.Start();
 			_ = Task.Factory.StartNew(RetrieveFrames, TaskCreationOptions.LongRunning);
 			_ = Task.Factory.StartNew(DisplayFrames, TaskCreationOptions.LongRunning);
 
@@ -71,30 +61,27 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 		private async Task InitializeSignalR() {
 			try {
 				Connection = new HubConnectionBuilder()
-					.WithUrl("http://localhost:5026/screenControlHub")
+					.WithUrl(Settings.ServerAddress + Settings.HubName)
 					.Build();
 
 				Connection.Closed += async (obj) => {
 					await Task.Delay(new Random().Next(0, 5) * 1000);
-					await Connection.StartAsync();
+					try {
+						await Connection.StartAsync();
+						this.Dispatcher.Invoke(() => UpdateConnectionStatus(true));
+					}
+					catch (Exception e) {
+						this.Dispatcher.Invoke(() => UpdateConnectionStatus(false));
+						MessageBox.Show("Couldn't reconnect: " + e.ToString());
+						//handle this better
+					}
 				};
-				//Connection.On<string, string>("ReceivePacket", (user, message) => {
-				//	this.Dispatcher.Invoke(() => {
-				//		var newMessage = $"control {user}: {message}";
-				//		MessageBox.Show(newMessage);
-				//	});
-				//});
 				Connection.On<string>("FailedConnection", (message) => {
 					MessageBox.Show($"Couldn't connect: {message}");
 				});
 				Connection.On<string>("ReceiveConnectionToControl", (peerId) => {
 					PeerConnectionIdCompletionSource.SetResult(peerId);
-					this.Dispatcher.Invoke(() => {
-						ConnectionStatus.Content = "Connected";
-					});
-				});
-				Connection.On<double, double>("ReceiveScreenSize", (double width, double height) => {
-					PeerScreenSizeCompletionSource.SetResult((width, height));
+					this.Dispatcher.Invoke(() => UpdateConnectionStatus(true));
 				});
 				Connection.On<string>("Error", (error) => { MessageBox.Show($"Error: {error}"); });
 
@@ -106,14 +93,21 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 			}
 		}
 
+		private void UpdateConnectionStatus(bool isConnected) {
+			if (isConnected) {
+				StatusIndicator.Fill = new SolidColorBrush(Colors.Green);
+				StatusIndicator.ToolTip = "Connection status: Connected";
+			}
+			else {
+				StatusIndicator.Fill = new SolidColorBrush(Colors.Red);
+				StatusIndicator.ToolTip = "Connection status: Not connected";
+			}
+		}
+
 		private async Task RetrieveFrames() {
 			var token = CancellationTokenSource.Token;
 			await IsInitializedCompletionSource.Task;
 			try {
-				//while (!IsInitialized) {
-				//	await Task.Delay(1000);
-				//}
-
 				this.Dispatcher.Invoke(() => ConnectingStatusLabel.Content = string.Empty);
 
 				var timer = Stopwatch.StartNew();
@@ -131,7 +125,6 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 					}
 
 					if (memoryStream.Length == 0) {
-						Dispatcher.Invoke(() => TransferStatus.Content = "Buffer is empty");
 						await Task.Delay(500);
 						continue;
 					}
@@ -175,20 +168,6 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 			}
 		}
 
-
-		//private static BitmapImage BitmapToImageSource(Bitmap bitmap) {
-		//	using var memoryStream = new MemoryStream();
-		//	bitmap.Save(memoryStream, ImageFormat.Jpeg);
-		//	memoryStream.Position = 0;
-		//	var bitmapImage = new BitmapImage();
-		//	bitmapImage.BeginInit();
-		//	bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
-		//	bitmapImage.StreamSource = memoryStream;
-		//	bitmapImage.EndInit();
-		//	return bitmapImage;
-		//}
-
-
 		private async void Button_Click(object sender, RoutedEventArgs e) {
 			try {
 				await Connection.InvokeAsync("AnnounceControl", User, Passcode);
@@ -198,15 +177,6 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 			}
 		}
 
-		public struct KeyboardInput {
-			public enum ModifierKey {
-				NONE, SHIFT, CTRL, ALT,
-			}
-
-			public ushort Key { get; set; }
-			public ModifierKey SpecialKeyFlag { get; set; }
-		}
-		//public enum MouseDown
 
 		private async void VideoFeed_MouseMove(object sender, System.Windows.Input.MouseEventArgs e) {
 			if (!IsInitializedCompletionSource.Task.IsCompleted)
@@ -216,9 +186,6 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 
 			double normalizedX = Math.Clamp(position.X / Image.ActualWidth, 0, 1);
 			double normalizedY = Math.Clamp(position.Y / Image.ActualHeight, 0, 1);
-
-			//SWidth.Content = normalizedX;
-			//SHeight.Content = normalizedY;
 
 			await Connection.SendAsync("SendMouseMove", PeerConnectionId, normalizedX, normalizedY);
 		}
@@ -248,10 +215,6 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 		public void Dispose() {
 			CancellationTokenSource.Dispose();
 			GC.SuppressFinalize(this);
-		}
-
-		private void Window_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e) {
-			//KeyboardSimulator.SendKey(0x41, 10000);
 		}
 	}
 }

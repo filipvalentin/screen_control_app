@@ -27,10 +27,6 @@ namespace ScreenControlApp.Backend.Hubs {
 			await Clients.Client(value.shareConnectionId).SendAsync("ReceiveConnectionToShare", Context.ConnectionId);
 		}
 
-		public async Task AnnounceScreenSize(string connectionId, double width, double height) {
-			await Clients.Client(connectionId).SendAsync("ReceiveScreenSize", width, height);
-		}
-
 		public async Task UploadFrame(ChannelReader<byte[]> stream) {
 			try {
 				var memoryStream = new MemoryStream();

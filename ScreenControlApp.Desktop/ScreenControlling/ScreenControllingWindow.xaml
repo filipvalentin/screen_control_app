@@ -8,7 +8,6 @@
         Title="ScreenControlWindow" 
 		Height="517" Width="800"
 		KeyDown="Window_KeyDown"
-		MouseDown="Window_MouseDown"
 		KeyUp="Window_KeyUp">
 	<Grid
 		HorizontalAlignment="Stretch" 
@@ -20,19 +19,21 @@
 			<!-- For Image to take remaining space -->
 		</Grid.RowDefinitions>
 		<StackPanel	Grid.Row="0" HorizontalAlignment="Stretch" Orientation="Horizontal">
-			<!--<Button Content="Connect" HorizontalAlignment="Left"  VerticalAlignment="Top" Click="Button_Click" />-->
-			<Label Content="Not connected" Name="ConnectionStatus"/>
+			<Ellipse x:Name="StatusIndicator" Width="10" Height="10" VerticalAlignment="Center" Margin="10" Fill="Red" ToolTip="Connection status: Not connected"/>
 
-			<Label Content="TransferStatus" Name="TransferStatus"/>
+			<Label Content="T:" VerticalAlignment="Center"
+				   ToolTip="Transfer time: the time it took the application to transfer a frame from the server." />
+			<Label Name="TransferTimeLabel" Content="0ms" VerticalAlignment="Center"
+				   ToolTip="Transfer time: the time it took the application to transfer a frame from the server."/>
 
-			<Label Content="T:" />
-			<Label Content="10ms" Name="TransferTimeLabel"/>
+			<Label Content="R:" VerticalAlignment="Center"
+				   ToolTip="Render time: the time it took the application to render a frame."/>
+			<Label Name="RenderTimeLabel" Content="0ms" VerticalAlignment="Center"
+				   ToolTip="Render time: the time it took the application to render a frame."/>
 
-			<Label Content="R:" />
-			<Label Content="20ms" Name="RenderTimeLabel"/>
-
-			<Label Content="Render frame buffer:" />
-			<Label Content="" Name="RenderFrameBufferLabel" />
+			<!--remove this in production-->
+			<Label Content="Render frame buffer:" VerticalAlignment="Center"/>
+			<Label Content="" Name="RenderFrameBufferLabel" VerticalAlignment="Center"/>
 		</StackPanel>
 
 		<Grid Name="controlStackPanel" 

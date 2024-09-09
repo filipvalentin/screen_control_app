@@ -1,13 +1,12 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
 using ScreenControlApp.Desktop.Common.Settings;
+using ScreenControlApp.Desktop.ScreenSharing.Util;
 using System.Diagnostics;
-using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Threading.Channels;
 using System.Windows;
 using System.Windows.Input;
-using static ScreenControlApp.Desktop.ScreenSharing.NativeMethods;
+using System.Windows.Media;
 using MessageBox = System.Windows.MessageBox;
 
 namespace ScreenControlApp.Desktop.ScreenSharing {
@@ -18,18 +17,14 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 		private string User { get; set; } = null!;
 		private string Passcode { get; set; } = null!;
 		private string PeerConnectionId { get; set; } = null!;
+		private Screen SharedScreen { get; set; } = null!;
 
 		private readonly CancellationTokenSource CancellationTokenSource = new();
 
 		private readonly TaskCompletionSource<string> PeerConnectionIdCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		private readonly TaskCompletionSource IsInitializedCompletionSource = new();
 
-		int virtualWidth = SystemInformation.VirtualScreen.Width;
-		int virtualHeight = SystemInformation.VirtualScreen.Height;
-		int virtualLeft = SystemInformation.VirtualScreen.Left;
-		int virtualTop = SystemInformation.VirtualScreen.Top;
 
-		private Screen SharedScreen { get; set; } = null!;
 
 		public ScreenSharingWindow(ApplicationSettings settings, string user, string passcode) {
 			InitializeComponent();
@@ -60,8 +55,6 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 
 			PeerConnectionId = await PeerConnectionIdCompletionSource.Task;
 
-			await Connection.InvokeAsync("AnnounceScreenSize", PeerConnectionId, Screen.PrimaryScreen.Bounds.Width, Screen.PrimaryScreen.Bounds.Height); //TODO: CHANGE TO SETTINGS-BASED SCREEN SELECTION
-
 			IsInitializedCompletionSource.SetResult();
 
 			_ = Task.Factory.StartNew(ShareVideoFeed, TaskCreationOptions.LongRunning);
@@ -69,12 +62,21 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 		private async Task InitializeSignalR() {
 			try {
 				Connection = new HubConnectionBuilder()
-					.WithUrl(Settings.ServerAddress)
+					.WithUrl(Settings.ServerAddress + Settings.HubName)
 					.Build();
 
 				Connection.Closed += async (obj) => {
 					await Task.Delay(new Random().Next(0, 5) * 1000);
-					await Connection.StartAsync();//TODO: RESET CONNECTION IDS
+					try {
+						await Connection.StartAsync();
+						this.Dispatcher.Invoke(() => UpdateConnectionStatus(true));
+					}
+					catch (Exception e) {
+						this.Dispatcher.Invoke(() => UpdateConnectionStatus(false));
+						MessageBox.Show("Couldn't reconnect: " + e.ToString());
+						//handle this better
+					}
+					//TODO: RESET CONNECTION IDS
 				};
 
 				Connection.On<string>("FailedConnection", (message) => {
@@ -98,6 +100,14 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 				MessageBox.Show(ex.Message);
 			}
 		}
+		private void UpdateConnectionStatus(bool isConnected) {
+			if (isConnected) {
+				StatusIndicator.Fill = new SolidColorBrush(Colors.Green);
+			}
+			else {
+				StatusIndicator.Fill = new SolidColorBrush(Colors.Red);
+			}
+		}
 
 		#region Controlling_Methods
 		private void MouseMoveReceived(double normalizedX, double normalizedY) {
@@ -108,36 +118,36 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 			int screenNormalizedY = ((targetY - SystemInformation.VirtualScreen.Top) * 65535) / SystemInformation.VirtualScreen.Height;
 
 			var inputs = new NativeMethods.INPUT[1];
-			inputs[0].type = INPUT_MOUSE;
+			inputs[0].type = NativeMethods.INPUT_MOUSE;
 			inputs[0].u.mi.dx = screenNormalizedX;
 			inputs[0].u.mi.dy = screenNormalizedY;
-			inputs[0].u.mi.dwFlags = NativeMethods.MOUSEEVENTF_ABSOLUTE | NativeMethods.MOUSEEVENTF_MOVE | MOUSEEVENTF_VIRTUALDESK;
+			inputs[0].u.mi.dwFlags = NativeMethods.MOUSEEVENTF_ABSOLUTE | NativeMethods.MOUSEEVENTF_MOVE | NativeMethods.MOUSEEVENTF_VIRTUALDESK;
 			_ = NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(NativeMethods.INPUT)));
 		}
 		private void MouseDownReceived(int buttonCode) {
 			var inputs = new NativeMethods.INPUT[1];
-			inputs[0].type = INPUT_MOUSE;
+			inputs[0].type = NativeMethods.INPUT_MOUSE;
 			//MessageBox.Show(buttonCode.ToString());
 			switch ((System.Windows.Input.MouseButton)buttonCode) {
 				case System.Windows.Input.MouseButton.Left:
-					inputs[0].u.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+					inputs[0].u.mi.dwFlags = NativeMethods.MOUSEEVENTF_LEFTDOWN;
 					break;
 				case System.Windows.Input.MouseButton.Right:
-					inputs[0].u.mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
+					inputs[0].u.mi.dwFlags = NativeMethods.MOUSEEVENTF_RIGHTDOWN;
 					break;
 				case System.Windows.Input.MouseButton.Middle:
-					inputs[0].u.mi.dwFlags = MOUSEEVENTF_MIDDLEDOWN;
+					inputs[0].u.mi.dwFlags = NativeMethods.MOUSEEVENTF_MIDDLEDOWN;
 					break;
 				case System.Windows.Input.MouseButton.XButton1:
-					inputs[0].u.mi = new MOUSEINPUT {
-						dwFlags = MOUSEEVENTF_XDOWN,
-						mouseData = XBUTTON1
+					inputs[0].u.mi = new NativeMethods.MOUSEINPUT {
+						dwFlags = NativeMethods.MOUSEEVENTF_XDOWN,
+						mouseData = NativeMethods.XBUTTON1
 					};
 					break;
 				case System.Windows.Input.MouseButton.XButton2:
-					inputs[0].u.mi = new MOUSEINPUT {
-						dwFlags = MOUSEEVENTF_XDOWN,
-						mouseData = XBUTTON2
+					inputs[0].u.mi = new NativeMethods.MOUSEINPUT {
+						dwFlags = NativeMethods.MOUSEEVENTF_XDOWN,
+						mouseData = NativeMethods.XBUTTON2
 					};
 					break;
 			};
@@ -145,28 +155,28 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 		}
 		private void MouseUpReceived(int buttonCode) {
 			//System.Windows.Input.MouseButton pressedButton = ;
-			var inputs = new INPUT[1];
-			inputs[0].type = INPUT_MOUSE;
+			var inputs = new NativeMethods.INPUT[1];
+			inputs[0].type = NativeMethods.INPUT_MOUSE;
 			switch ((System.Windows.Input.MouseButton)buttonCode) {
 				case System.Windows.Input.MouseButton.Left:
-					inputs[0].u.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+					inputs[0].u.mi.dwFlags = NativeMethods.MOUSEEVENTF_LEFTUP;
 					break;
 				case System.Windows.Input.MouseButton.Right:
-					inputs[0].u.mi.dwFlags = MOUSEEVENTF_RIGHTUP;
+					inputs[0].u.mi.dwFlags = NativeMethods.MOUSEEVENTF_RIGHTUP;
 					break;
 				case System.Windows.Input.MouseButton.Middle:
-					inputs[0].u.mi.dwFlags = MOUSEEVENTF_MIDDLEUP;
+					inputs[0].u.mi.dwFlags = NativeMethods.MOUSEEVENTF_MIDDLEUP;
 					break;
 				case System.Windows.Input.MouseButton.XButton1:
-					inputs[0].u.mi = new MOUSEINPUT {
-						dwFlags = MOUSEEVENTF_XUP,
-						mouseData = XBUTTON1
+					inputs[0].u.mi = new NativeMethods.MOUSEINPUT {
+						dwFlags = NativeMethods.MOUSEEVENTF_XUP,
+						mouseData = NativeMethods.XBUTTON1
 					};
 					break;
 				case System.Windows.Input.MouseButton.XButton2:
-					inputs[0].u.mi = new MOUSEINPUT {
-						dwFlags = MOUSEEVENTF_XUP,
-						mouseData = XBUTTON2
+					inputs[0].u.mi = new NativeMethods.MOUSEINPUT {
+						dwFlags = NativeMethods.MOUSEEVENTF_XUP,
+						mouseData = NativeMethods.XBUTTON2
 					};
 					break;
 			};
@@ -174,9 +184,9 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 		}
 		private void MouseScrollReceived(int scrollValue) {
 			var inputs = new NativeMethods.INPUT[1];
-			inputs[0].type = INPUT_MOUSE;
-			inputs[0].u.mi = new MOUSEINPUT {
-				dwFlags = MOUSEEVENTF_WHEEL,
+			inputs[0].type = NativeMethods.INPUT_MOUSE;
+			inputs[0].u.mi = new NativeMethods.MOUSEINPUT {
+				dwFlags = NativeMethods.MOUSEEVENTF_WHEEL,
 				mouseData = scrollValue
 			};
 			_ = NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(NativeMethods.INPUT)));
@@ -184,56 +194,41 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 
 		private async void KeyDownReceived(int keycode) {
 			var inputs = new NativeMethods.INPUT[1];
-			inputs[0].type = INPUT_KEYBOARD;
+			inputs[0].type = NativeMethods.INPUT_KEYBOARD;
 			inputs[0].u.ki.wVk = NativeMethods.MapKeyToVirtualKey((Key)keycode);
-			inputs[0].u.ki.dwFlags = KEYEVENTF_KEYDOWN;
+			inputs[0].u.ki.dwFlags = NativeMethods.KEYEVENTF_KEYDOWN;
 			inputs[0].u.ki.dwExtraInfo = NativeMethods.GetMessageExtraInfo();
 			_ = NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(NativeMethods.INPUT)));
 		}
 		private void KeyUpReceived(int keycode) {
 			var inputs = new NativeMethods.INPUT[1];
-			inputs[0].type = INPUT_KEYBOARD;
+			inputs[0].type = NativeMethods.INPUT_KEYBOARD;
 			inputs[0].u.ki.wVk = NativeMethods.MapKeyToVirtualKey((Key)keycode);
-			inputs[0].u.ki.dwFlags = KEYEVENTF_KEYUP;
+			inputs[0].u.ki.dwFlags = NativeMethods.KEYEVENTF_KEYUP;
 			inputs[0].u.ki.dwExtraInfo = NativeMethods.GetMessageExtraInfo();
 			_ = NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(NativeMethods.INPUT)));
 		}
+
 		#endregion
 
 		#region VideoFeed_Methods
 		private async Task ShareVideoFeed() {
 			var cancellationToken = CancellationTokenSource.Token;
 
-			var bitmap = new Bitmap(System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width,
-									System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height);
-			using var graphics = Graphics.FromImage(bitmap);
+			using var frameProvider = new ScreenshotFrameProvider(SharedScreen);
+			var frameSender = new ChannelFrameSender(Connection);
+
 			using var memoryStream = new MemoryStream();
 			try {
 				while (!cancellationToken.IsCancellationRequested) {
 					var timer = Stopwatch.StartNew();
-					CaptureScreen(graphics, bitmap);
 
-					memoryStream.SetLength(0);
-					bitmap.Save(memoryStream, ImageFormat.Jpeg);
-					byte[] imageBytes = memoryStream.ToArray();
-					this.Dispatcher.Invoke(() => { /*ConnectionStatus.Content = imageBytes.Length;*/ CaptureTimeLabel.Content = timer.ElapsedMilliseconds + "ms"; });
+					frameProvider.CaptureFrame(memoryStream);
+					this.Dispatcher.Invoke(() => CaptureTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
 
 					timer.Restart();
-					var channel = Channel.CreateUnbounded<byte[]>();
-					await Connection.SendAsync("UploadFrame", channel.Reader);
 
-					const int chunkSize = 8192;
-					int offset = 0;
-					while (offset < imageBytes.Length) {
-						int count = Math.Min(chunkSize, imageBytes.Length - offset);
-						var chunk = new byte[count];
-						Array.Copy(imageBytes, offset, chunk, 0, count);
-						await channel.Writer.WriteAsync(chunk);
-						offset += count;
-					}
-					channel.Writer.Complete();
-
-					await channel.Reader.Completion;
+					await frameSender.SendFrame(memoryStream);
 					this.Dispatcher.Invoke(() => TransferTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
 				}
 			}
@@ -241,18 +236,15 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 				MessageBox.Show(ex.ToString());
 			}
 		}
-
-		private static void CaptureScreen(Graphics graphics, Bitmap bitmap) {
-			graphics.CopyFromScreen(System.Windows.Forms.Screen.PrimaryScreen.Bounds.X,
-									System.Windows.Forms.Screen.PrimaryScreen.Bounds.Y,
-									0, 0,
-									bitmap.Size,
-									CopyPixelOperation.SourceCopy);
-		}
 		#endregion
 
-		private void Disconnect_Button_Click(object sender, RoutedEventArgs e) {
-			CancellationTokenSource.Cancel();
+		private async void Disconnect_Button_Click(object sender, RoutedEventArgs e) {
+			try {
+				await Connection.StopAsync();
+			}
+			catch (Exception ex) {
+			}
+			this.Close();
 		}
 
 		private void Settings_Button_Click(object sender, RoutedEventArgs e) {

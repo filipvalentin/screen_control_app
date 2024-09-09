@@ -1,7 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 using System.Windows.Input;
 
-namespace ScreenControlApp.Desktop.ScreenSharing {
+namespace ScreenControlApp.Desktop.ScreenSharing.Util {
 	class NativeMethods {
 		[DllImport("user32.dll")]
 		public static extern uint SendInput(uint nInputs, [MarshalAs(UnmanagedType.LPArray), In] INPUT[] pInputs, int cbSize);
