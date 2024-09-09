@@ -11,9 +11,7 @@ using static ScreenControlApp.Desktop.ScreenSharing.NativeMethods;
 using MessageBox = System.Windows.MessageBox;
 
 namespace ScreenControlApp.Desktop.ScreenSharing {
-	/// <summary>
-	/// Interaction logic for ScreenSharingWindow.xaml
-	/// </summary>
+
 	public partial class ScreenSharingWindow : Window, IDisposable {
 		private ApplicationSettings Settings { get; set; }
 		private HubConnection Connection { get; set; } = null!;
@@ -31,7 +29,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 		int virtualLeft = SystemInformation.VirtualScreen.Left;
 		int virtualTop = SystemInformation.VirtualScreen.Top;
 
-		private readonly Screen SharedScreen = Screen.PrimaryScreen;
+		private Screen SharedScreen { get; set; } = null!;
 
 		public ScreenSharingWindow(ApplicationSettings settings, string user, string passcode) {
 			InitializeComponent();
@@ -39,6 +37,8 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 			Settings = settings;
 			User = user;
 			Passcode = passcode;
+			SharedScreen = Screen.AllScreens[settings.PreferredScreenId];
+			//TODO place window on preferred screen
 
 			this.Closed += (sender, args) => {
 				CancellationTokenSource.Cancel();
@@ -46,11 +46,6 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 			};
 
 			_ = Task.Run(InitializeWindowState);
-
-			// Information for each screen
-			//foreach (var screen in screens) {
-			//	Debug.WriteLine($"Screen: {screen.DeviceName}, Bounds: {screen.Bounds}, Primary: {screen.Primary}");
-			//}
 		}
 
 		private async Task InitializeWindowState() {
@@ -90,9 +85,6 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 				});
 				Connection.On<string>("ReceiveConnectionToShare", (peerId) => {
 					PeerConnectionIdCompletionSource.SetResult(peerId);
-					this.Dispatcher.Invoke(() => {
-						ConnectionStatus.Content = "Connected";
-					});
 				});
 				Connection.On<double, double>("ReceiveMouseMove", MouseMoveReceived);
 				Connection.On<int>("ReceiveMouseDown", MouseDownReceived);
@@ -101,13 +93,13 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 				Connection.On<int>("ReceiveKeyDown", KeyDownReceived);
 				Connection.On<int>("ReceiveKeyUp", KeyUpReceived);
 				await Connection.StartAsync();
-
 			}
 			catch (Exception ex) {
 				MessageBox.Show(ex.Message);
 			}
 		}
 
+		#region Controlling_Methods
 		private void MouseMoveReceived(double normalizedX, double normalizedY) {
 			int targetX = SharedScreen.Bounds.Left + (int)(normalizedX * SharedScreen.Bounds.Width);
 			int targetY = SharedScreen.Bounds.Top + (int)(normalizedY * SharedScreen.Bounds.Height);
@@ -206,7 +198,9 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 			inputs[0].u.ki.dwExtraInfo = NativeMethods.GetMessageExtraInfo();
 			_ = NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(NativeMethods.INPUT)));
 		}
+		#endregion
 
+		#region VideoFeed_Methods
 		private async Task ShareVideoFeed() {
 			var cancellationToken = CancellationTokenSource.Token;
 
@@ -222,7 +216,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 					memoryStream.SetLength(0);
 					bitmap.Save(memoryStream, ImageFormat.Jpeg);
 					byte[] imageBytes = memoryStream.ToArray();
-					this.Dispatcher.Invoke(() => { ConnectionStatus.Content = imageBytes.Length; CaptureTimeLabel.Content = timer.ElapsedMilliseconds + "ms"; });
+					this.Dispatcher.Invoke(() => { /*ConnectionStatus.Content = imageBytes.Length;*/ CaptureTimeLabel.Content = timer.ElapsedMilliseconds + "ms"; });
 
 					timer.Restart();
 					var channel = Channel.CreateUnbounded<byte[]>();
@@ -248,19 +242,6 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 			}
 		}
 
-		private async void Button_Click(object sender, RoutedEventArgs e) {
-			try {
-				await Connection.InvokeAsync("AnnounceShare", User, Passcode);
-			}
-			catch (Exception ex) {
-				MessageBox.Show(ex.Message);
-			}
-		}
-
-		private async void Button_Click_TakeScreenshot(object sender, RoutedEventArgs e) {
-
-		}
-
 		private static void CaptureScreen(Graphics graphics, Bitmap bitmap) {
 			graphics.CopyFromScreen(System.Windows.Forms.Screen.PrimaryScreen.Bounds.X,
 									System.Windows.Forms.Screen.PrimaryScreen.Bounds.Y,
@@ -268,64 +249,26 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 									bitmap.Size,
 									CopyPixelOperation.SourceCopy);
 		}
+		#endregion
 
-		private async void Button_Click_1(object sender, RoutedEventArgs e) {
-			Thread.Sleep(3000);
-			//SimulateKeyPress('1');
-			//SimulateKeyPress('k');
+		private void Disconnect_Button_Click(object sender, RoutedEventArgs e) {
+			CancellationTokenSource.Cancel();
 		}
-		//public void SimulateKeyPress(ushort keyCode) {
-		//	NativeMethods.INPUT[] inputs =
-		//	[
-		//		new NativeMethods.INPUT {
-		//			type = NativeMethods.INPUT_KEYBOARD,
-		//			U = new NativeMethods.InputUnion {
-		//				ki = new NativeMethods.KEYBDINPUT {
-		//					wVk = 0xA0,
-		//					dwFlags = NativeMethods.KEYEVENTF_KEYDOWN,
-		//					dwExtraInfo = NativeMethods.GetMessageExtraInfo()
-		//				}
-		//			}
-		//		},
-		//		new NativeMethods.INPUT {
-		//			type = NativeMethods.INPUT_KEYBOARD,
-		//			U = new NativeMethods.InputUnion {
-		//				ki = new NativeMethods.KEYBDINPUT {
-		//					wVk = keyCode,
-		//					dwFlags = NativeMethods.KEYEVENTF_KEYDOWN,
-		//					dwExtraInfo = NativeMethods.GetMessageExtraInfo()
-		//				}
-		//			}
-		//		},
-		//		new NativeMethods.INPUT {
-		//			type = NativeMethods.INPUT_KEYBOARD,
-		//			U = new NativeMethods.InputUnion {
-		//				ki = new NativeMethods.KEYBDINPUT {
-		//					wVk = keyCode,
-		//					dwFlags = NativeMethods.KEYEVENTF_KEYUP,
-		//					dwExtraInfo = NativeMethods.GetMessageExtraInfo()
-		//				}
-		//			}
-		//		},
-		//		new NativeMethods.INPUT {
-		//			type = NativeMethods.INPUT_KEYBOARD,
-		//			U = new NativeMethods.InputUnion {
-		//				ki = new NativeMethods.KEYBDINPUT {
-		//					wVk = 0xA0,
-		//					dwFlags = NativeMethods.KEYEVENTF_KEYUP,
-		//					dwExtraInfo = NativeMethods.GetMessageExtraInfo()
-		//				}
-		//			}
-		//		}
-		//	];
-		//	Debug.WriteLine(NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(NativeMethods.INPUT))));
-		//	//Debug.WriteLine(Marshal.GetLastWin32Error());
-		//}
+
+		private void Settings_Button_Click(object sender, RoutedEventArgs e) {
+			//open window with screen
+		}
+
+		private void MoveWindowArea_StackPanel_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e) {
+			if (e.ChangedButton == MouseButton.Left)
+				this.DragMove();
+		}
 
 		public void Dispose() {
 			//CancellationTokenSource.Cancel();
 			CancellationTokenSource.Dispose();
 			GC.SuppressFinalize(this);
 		}
+
 	}
 }

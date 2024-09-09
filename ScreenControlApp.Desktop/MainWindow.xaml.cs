@@ -76,7 +76,7 @@ namespace ScreenControlApp.Desktop {
 
 			try {
 				var loader = new ApplicationSettingsLoader();
-				loader.Save(Settings, "settings.json");
+				loader.Save(Settings, "client-settings.json");
 				Settings_Panel_SavedSettings_Label.Visibility = Visibility.Visible;
 			}
 			catch (Exception ex) {
@@ -86,7 +86,7 @@ namespace ScreenControlApp.Desktop {
 		}
 
 
-		#region MainWindow_LoadingOverlay
+		#region MainWindow_LoadingProcedure
 		private void Window_Loaded(object sender, RoutedEventArgs e) {
 			_ = Task.Run(async () => {
 				this.Dispatcher.Invoke(() => {
@@ -122,7 +122,7 @@ namespace ScreenControlApp.Desktop {
 		private void LoadSettings() {
 			try {
 				var loader = new ApplicationSettingsLoader();
-				Settings = loader.Load("settings.json");
+				Settings = loader.Load("client-settings.json");
 			}
 			catch (Exception ex) {
 				System.Windows.MessageBox.Show(ex.Message);
