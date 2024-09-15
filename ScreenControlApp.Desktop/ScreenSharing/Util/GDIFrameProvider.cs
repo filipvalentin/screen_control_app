@@ -2,12 +2,12 @@
 using System.IO;
 
 namespace ScreenControlApp.Desktop.ScreenSharing.Util {
-	public class ScreenshotFrameProvider : IFrameProvider {
+	public class GDIFrameProvider : IFrameProvider {
 		private Bitmap Bitmap { get; set; } = null!;
 		private Graphics Graphics { get; set; } = null!;
 		private Screen Screen { get; set; } = null!;
 
-		public ScreenshotFrameProvider(Screen screenToCapture) {
+		public GDIFrameProvider(Screen screenToCapture) {
 			Screen = screenToCapture;
 			Bitmap = new Bitmap(Screen.Bounds.Width, Screen.Bounds.Height);
 			Graphics = Graphics.FromImage(Bitmap);

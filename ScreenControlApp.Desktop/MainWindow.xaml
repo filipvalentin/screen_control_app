@@ -29,19 +29,20 @@
 					<Label Content="Control a host"/>
 					<Separator/>
 					<Label Content="Host"/>
-					<TextBox Name="ControllingSide_HostId_TextBox" Margin="5" Text="123-456-789"/>
+					<TextBox Name="ControllingSide_HostId_TextBox" Margin="5"/>
+					
 					<Label Content="Passcode"/>
-					<TextBox Name="ControllingSide_Passcode_TextBox" Margin="5" Text="1234"/>
+					<TextBox Name="ControllingSide_Passcode_TextBox" Margin="5"/>
 					<Button Click="ControlHost_Button_Click">Connect</Button>
 				</StackPanel>
 				<StackPanel HorizontalAlignment="Right" Background="LightGray" Width="150">
 					<Label Content="Share control"/>
 					<Separator/>
 					<Label Content="Host"/>
-					<TextBox Name="SharingSide_HubId_TextBox" Margin="5" />
+					<TextBox Name="SharingSide_HubId_TextBox" Margin="5" IsReadOnly="True" ToolTip="The ID you have to give to your peer in order to connect. It cannot be modified"/>
 
 					<Label Content="Passcode"/>
-					<TextBox Name="SharingSide_Passcode_TextBox" Margin="5" />
+					<TextBox Name="SharingSide_Passcode_TextBox" Margin="5" MaxLength="20" ToolTip="A passcode example, you can modify it (maximum length: 20 characters). You have to give it to your peer too."/>
 
 					<Button Click="ShareHost_Button_Click">Share control</Button>
 				</StackPanel>

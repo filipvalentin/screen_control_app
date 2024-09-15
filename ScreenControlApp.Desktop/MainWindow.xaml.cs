@@ -5,11 +5,10 @@ using System.Windows.Media.Imaging;
 using ScreenControlApp.Desktop.Common.Settings;
 using ScreenControlApp.Desktop.Common;
 using System.Net.Http;
+using System.Text;
 
 namespace ScreenControlApp.Desktop {
-	/// <summary>
-	/// Interaction logic for MainWindow.xaml
-	/// </summary>
+
 	public partial class MainWindow : Window {
 		private ApplicationSettings Settings { get; set; } = null!;
 		private bool IsSettingsPageDisplayed = false;
@@ -19,11 +18,20 @@ namespace ScreenControlApp.Desktop {
 			InitializeComponent();
 			//Application.Current.MainWindow.WindowState = WindowState.Maximized;
 
-			SharingSide_Passcode_TextBox.Text = "123";//generate one
+			SharingSide_Passcode_TextBox.Text = GeneratePasskey();//"1234";//generate one
 
 			//var a = new QuickControlsWindow();
 			//a.Show();
 			this.Closed += ReturnHostId;
+		}
+
+		private string GeneratePasskey() {
+			StringBuilder s = new();
+			Random r = new();
+			for (int i = 0; i < 6; i++) {
+				s.Append(r.Next(9));
+			}
+			return s.ToString();
 		}
 
 		private async void ReturnHostId(object? sender, EventArgs e) {

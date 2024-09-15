@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.Collections.Concurrent;
 using ScreenControlApp.Desktop.Common.Settings;
 using System.Windows.Media;
+using ScreenControlApp.Desktop.ScreenControlling.Util;
 
 namespace ScreenControlApp.Desktop.ScreenControlling {
 
@@ -107,22 +108,13 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 		private async Task RetrieveFrames() {
 			var token = CancellationTokenSource.Token;
 			await IsInitializedCompletionSource.Task;
+			var frameRetriever = new ChannelFrameRetriever(Connection, PeerConnectionId, token);
 			try {
-				this.Dispatcher.Invoke(() => ConnectingStatusLabel.Content = string.Empty);
-
 				var timer = Stopwatch.StartNew();
 				while (!token.IsCancellationRequested) {
 					timer.Restart();
 
-					var channel = await Connection.StreamAsChannelAsync<byte[]>("DownloadFrame", PeerConnectionId, token);
-					var memoryStream = new MemoryStream();
-					memoryStream.SetLength(0); // Reset the memory stream
-
-					while (await channel.WaitToReadAsync()) {
-						await foreach (var chunk in channel.ReadAllAsync()) {
-							memoryStream.Write(chunk, 0, chunk.Length);
-						}
-					}
+					var memoryStream = await frameRetriever.RetrieveAsync();
 
 					if (memoryStream.Length == 0) {
 						await Task.Delay(500);
@@ -159,7 +151,7 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 						RenderFrameBufferLabel.Content = FrameBuffer.Count;
 					});
 					timer.Stop();
-					Dispatcher.Invoke(() => RenderTimeLabel.Content = timer.ElapsedMilliseconds + "ms + ");
+					Dispatcher.Invoke(() => RenderTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
 					await Task.Delay(24);
 				}
 			}

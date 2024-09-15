@@ -3,11 +3,8 @@ using System.IO;
 using System.Threading.Channels;
 
 namespace ScreenControlApp.Desktop.ScreenSharing.Util {
-	public class ChannelFrameSender : IFrameSender {
-		HubConnection Connection { get; set; }
-		public ChannelFrameSender(HubConnection connection) {
-			Connection = connection;
-		}
+	public class ChannelFrameSender(HubConnection connection) : IFrameSender {
+		HubConnection Connection { get; set; } = connection;
 
 		public async Task SendFrame(MemoryStream memoryStream) {
 			byte[] frameBytes = memoryStream.ToArray();

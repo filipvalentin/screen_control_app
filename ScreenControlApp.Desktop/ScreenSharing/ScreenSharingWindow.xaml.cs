@@ -4,6 +4,7 @@ using ScreenControlApp.Desktop.ScreenSharing.Util;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -23,8 +24,6 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 
 		private readonly TaskCompletionSource<string> PeerConnectionIdCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		private readonly TaskCompletionSource IsInitializedCompletionSource = new();
-
-
 
 		public ScreenSharingWindow(ApplicationSettings settings, string user, string passcode) {
 			InitializeComponent();
@@ -215,7 +214,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 		private async Task ShareVideoFeed() {
 			var cancellationToken = CancellationTokenSource.Token;
 
-			using var frameProvider = new ScreenshotFrameProvider(SharedScreen);
+			using var frameProvider = new FFMPEGFrameProvider("E:\\Utilitare\\ShareX\\ffmpeg.exe", SharedScreen, cancellationToken); //new GDIFrameProvider(SharedScreen);//DDAPIFrameProvider(cancellationToken);//
 			var frameSender = new ChannelFrameSender(Connection);
 
 			using var memoryStream = new MemoryStream();
@@ -238,12 +237,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 		}
 		#endregion
 
-		private async void Disconnect_Button_Click(object sender, RoutedEventArgs e) {
-			try {
-				await Connection.StopAsync();
-			}
-			catch (Exception ex) {
-			}
+		private void Disconnect_Button_Click(object sender, RoutedEventArgs e) {
 			this.Close();
 		}
 
