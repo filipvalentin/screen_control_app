@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:ScreenControlApp.Desktop"
         mc:Ignorable="d"
         Title="ViewSelectedScreenWindow" 
-		Height="319" Width="448"
+		Height="281" Width="448"
 		WindowStyle="None"
 		AllowsTransparency="True" 
 		Background="#60429AFF"
@@ -27,7 +27,7 @@
 					   FontWeight="SemiBold" 
 					   Foreground="White" 
 					   Text="Selected Screen"/>
-			<TextBlock Name="ScreenInfo_TextBlock" VerticalAlignment="Center"
+			<TextBlock Name="ScreenInfo_TextBlock" VerticalAlignment="Center" Margin="0,5,0,0"
 					   TextAlignment="Center" 
 					   FontSize="14"
 					   FontWeight="Regular" 
