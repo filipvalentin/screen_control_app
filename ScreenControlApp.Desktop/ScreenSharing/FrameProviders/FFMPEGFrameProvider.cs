@@ -1,8 +1,7 @@
-﻿using System;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 
-namespace ScreenControlApp.Desktop.ScreenSharing.Util {
+namespace ScreenControlApp.Desktop.ScreenSharing.FrameProviders {
 	public class FFMPEGFrameProvider : IFrameProvider {
 		private readonly Process ffmpegProcess;
 		private readonly Stream inputStream;
@@ -14,7 +13,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing.Util {
 
 			ffmpegProcess = new Process();
 			ffmpegProcess.StartInfo.FileName = ffmpegPath;
-			ffmpegProcess.StartInfo.Arguments = "-filter_complex ddagrab=0,hwdownload,format=bgra -c:v libx264 -crf 20 -pix_fmt bgr24 -f matroska -";//-pix_fmt rgb24
+			ffmpegProcess.StartInfo.Arguments = "-filter_complex ddagrab=0,hwdownload,format=bgra -tune zerolatency -pix_fmt yuv420p -c:v libx264 -preset veryfast -crf 20 -f matroska -";//-pix_fmt rgb24
 			ffmpegProcess.StartInfo.RedirectStandardInput = true;
 			ffmpegProcess.StartInfo.RedirectStandardOutput = true;
 			ffmpegProcess.StartInfo.UseShellExecute = false;
@@ -31,7 +30,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing.Util {
 		public void CaptureFrame(MemoryStream memoryStream) {
 			var read = 0;
 			while (true) {
-				var toRead = Math.Min(4096*10, framePixels.Length - read);
+				var toRead = Math.Min(4096 * 10, framePixels.Length - read);
 				if (toRead < 4096) {
 					Debug.WriteLine(toRead);
 				}

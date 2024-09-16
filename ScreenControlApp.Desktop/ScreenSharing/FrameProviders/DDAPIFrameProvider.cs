@@ -4,7 +4,7 @@ using ScreenCapture.NET;
 using System.Drawing.Imaging;
 using System.IO;
 
-namespace ScreenControlApp.Desktop.ScreenSharing.Util {
+namespace ScreenControlApp.Desktop.ScreenSharing.FrameProviders {
 	public class DDAPIFrameProvider : IFrameProvider {
 		private IScreenCaptureService ScreenCaptureService { get; set; }
 		private ICaptureZone FullScreenCaptureZone { get; set; }

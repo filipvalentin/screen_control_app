@@ -1,10 +1,11 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
 using ScreenControlApp.Desktop.Common.Settings;
+using ScreenControlApp.Desktop.ScreenSharing.FrameProviders;
+using ScreenControlApp.Desktop.ScreenSharing.FrameSenders;
 using ScreenControlApp.Desktop.ScreenSharing.Util;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Threading;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;

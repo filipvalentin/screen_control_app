@@ -1,7 +1,7 @@
 ﻿using System.Drawing.Imaging;
 using System.IO;
 
-namespace ScreenControlApp.Desktop.ScreenSharing.Util {
+namespace ScreenControlApp.Desktop.ScreenSharing.FrameProviders {
 	public class GDIFrameProvider : IFrameProvider {
 		private Bitmap Bitmap { get; set; } = null!;
 		private Graphics Graphics { get; set; } = null!;

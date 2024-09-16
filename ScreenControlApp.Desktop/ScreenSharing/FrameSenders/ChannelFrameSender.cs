@@ -2,7 +2,7 @@
 using System.IO;
 using System.Threading.Channels;
 
-namespace ScreenControlApp.Desktop.ScreenSharing.Util {
+namespace ScreenControlApp.Desktop.ScreenSharing.FrameSenders {
 	public class ChannelFrameSender(HubConnection connection) : IFrameSender {
 		HubConnection Connection { get; set; } = connection;
 
