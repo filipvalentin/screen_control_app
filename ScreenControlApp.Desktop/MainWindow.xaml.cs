@@ -6,6 +6,7 @@ using ScreenControlApp.Desktop.Common.Settings;
 using ScreenControlApp.Desktop.Common;
 using System.Net.Http;
 using System.Text;
+using System.Windows.Forms;
 
 namespace ScreenControlApp.Desktop {
 
@@ -20,8 +21,6 @@ namespace ScreenControlApp.Desktop {
 
 			SharingSide_Passcode_TextBox.Text = GeneratePasskey();//"1234";//generate one
 
-			//var a = new QuickControlsWindow();
-			//a.Show();
 			this.Closed += ReturnHostId;
 		}
 
@@ -62,6 +61,7 @@ namespace ScreenControlApp.Desktop {
 			};
 		}
 
+
 		private void NavBar_SettingsButton_Click(object sender, RoutedEventArgs e) {
 			if (!IsSettingsPageDisplayed) {
 				SCA_Hub_Controls_Panel.Visibility = Visibility.Collapsed;//TODO:Rename panels to mainpanel
@@ -77,6 +77,7 @@ namespace ScreenControlApp.Desktop {
 			IsSettingsPageDisplayed = !IsSettingsPageDisplayed;
 		}
 
+		#region Settings_Panel
 		private void Settings_Panel_SaveSettings_Button_Click(object sender, RoutedEventArgs e) {
 			Settings.ServerAddress = Settings_Panel_ServerAddress_TextBox.Text;
 			Settings.HubName = Settings_Panel_HubName_TextBox.Text;
@@ -93,6 +94,29 @@ namespace ScreenControlApp.Desktop {
 			}
 		}
 
+		//private System.Windows.Threading.DispatcherTimer Settings_Panel_ViewSelectedScreen_DisplayTimer = new();
+		//private int Settings_Panel_ViewSelectedScreen_DisplayTimer_SecondsToClose = 5;
+		private void Settings_Panel_ViewSelectedScreen_Button_Click(object sender, RoutedEventArgs e) {
+			var window = new ViewSelectedScreenWindow((string)Settings_Panel_ScreenSelector_ComboBox.SelectedItem);
+			window.Show();
+			window.Closed += Settings_Panel_ViewSelectedScreen_DisplayTimer_Tick;
+
+			this.Dispatcher.Invoke(() => Settings_Panel_ViewSelectedScreen_Button.IsEnabled = false);
+			//Settings_Panel_ViewSelectedScreen_DisplayTimer_SecondsToClose = 5;
+			//Settings_Panel_ViewSelectedScreen_DisplayTimer.Tick += Settings_Panel_ViewSelectedScreen_DisplayTimer_Tick;
+			//Settings_Panel_ViewSelectedScreen_DisplayTimer.Interval = TimeSpan.FromSeconds(1);
+			//Settings_Panel_ViewSelectedScreen_DisplayTimer.Start();
+		}
+		private void Settings_Panel_ViewSelectedScreen_DisplayTimer_Tick(object? sender, EventArgs e) {
+			//if (Settings_Panel_ViewSelectedScreen_DisplayTimer_SecondsToClose > 0)
+			//	Settings_Panel_ViewSelectedScreen_DisplayTimer_SecondsToClose--;
+			//else {
+			//	Settings_Panel_ViewSelectedScreen_DisplayTimer.Stop();
+				this.Dispatcher.Invoke(() => Settings_Panel_ViewSelectedScreen_Button.IsEnabled = true);
+			//}
+		}
+
+		#endregion
 
 		#region MainWindow_LoadingProcedure
 		private void Window_Loaded(object sender, RoutedEventArgs e) {

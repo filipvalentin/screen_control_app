@@ -1,0 +1,46 @@
+﻿<Window x:Class="ScreenControlApp.Desktop.ViewSelectedScreenWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:ScreenControlApp.Desktop"
+        mc:Ignorable="d"
+        Title="ViewSelectedScreenWindow" 
+		Height="319" Width="448"
+		WindowStyle="None"
+		AllowsTransparency="True" 
+		Background="#60429AFF"
+		WindowStartupLocation="CenterScreen"
+		Cursor="Hand"
+		MouseDown="Window_MouseDown" 
+		Topmost="True">
+	<Grid>
+		<Grid.RowDefinitions>
+			<RowDefinition Height="*"/>
+			<RowDefinition Height="auto"/>
+		</Grid.RowDefinitions>
+
+		<StackPanel Orientation="Vertical" VerticalAlignment="Center">
+			<TextBlock Grid.Row="0" VerticalAlignment="Center"
+					   TextAlignment="Center" 
+					   FontSize="40"
+					   FontWeight="SemiBold" 
+					   Foreground="White" 
+					   Text="Selected Screen"/>
+			<TextBlock Name="ScreenInfo_TextBlock" VerticalAlignment="Center"
+					   TextAlignment="Center" 
+					   FontSize="14"
+					   FontWeight="Regular" 
+					   Foreground="White" 
+					   Text="Resolution"/>
+
+		</StackPanel>
+
+		<Label Name="AutoClose_Label"
+			   Grid.Row="1" 
+			   HorizontalAlignment="Center"
+			   FontSize="14"
+			   Foreground="AliceBlue" 
+			   Content="Click to close this popup or wait 5 seconds"/>
+	</Grid>
+</Window>
