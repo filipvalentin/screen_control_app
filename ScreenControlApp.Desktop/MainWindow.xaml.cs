@@ -94,26 +94,15 @@ namespace ScreenControlApp.Desktop {
 			}
 		}
 
-		//private System.Windows.Threading.DispatcherTimer Settings_Panel_ViewSelectedScreen_DisplayTimer = new();
-		//private int Settings_Panel_ViewSelectedScreen_DisplayTimer_SecondsToClose = 5;
 		private void Settings_Panel_ViewSelectedScreen_Button_Click(object sender, RoutedEventArgs e) {
 			var window = new ViewSelectedScreenWindow((string)Settings_Panel_ScreenSelector_ComboBox.SelectedItem);
 			window.Show();
 			window.Closed += Settings_Panel_ViewSelectedScreen_DisplayTimer_Tick;
 
 			this.Dispatcher.Invoke(() => Settings_Panel_ViewSelectedScreen_Button.IsEnabled = false);
-			//Settings_Panel_ViewSelectedScreen_DisplayTimer_SecondsToClose = 5;
-			//Settings_Panel_ViewSelectedScreen_DisplayTimer.Tick += Settings_Panel_ViewSelectedScreen_DisplayTimer_Tick;
-			//Settings_Panel_ViewSelectedScreen_DisplayTimer.Interval = TimeSpan.FromSeconds(1);
-			//Settings_Panel_ViewSelectedScreen_DisplayTimer.Start();
 		}
 		private void Settings_Panel_ViewSelectedScreen_DisplayTimer_Tick(object? sender, EventArgs e) {
-			//if (Settings_Panel_ViewSelectedScreen_DisplayTimer_SecondsToClose > 0)
-			//	Settings_Panel_ViewSelectedScreen_DisplayTimer_SecondsToClose--;
-			//else {
-			//	Settings_Panel_ViewSelectedScreen_DisplayTimer.Stop();
 				this.Dispatcher.Invoke(() => Settings_Panel_ViewSelectedScreen_Button.IsEnabled = true);
-			//}
 		}
 
 		#endregion
