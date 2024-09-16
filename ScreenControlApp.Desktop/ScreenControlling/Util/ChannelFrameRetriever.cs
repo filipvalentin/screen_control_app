@@ -1,10 +1,5 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ScreenControlApp.Desktop.ScreenControlling.Util {
 	public class ChannelFrameRetriever(HubConnection connection, string PeerConnectionId, CancellationToken cancellationToken) {
