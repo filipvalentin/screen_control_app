@@ -1,8 +1,9 @@
-﻿using System.Runtime.InteropServices;
+﻿using ScreenControlApp.Desktop.Common.Displays;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace ScreenControlApp.Desktop.Common {
-	class DisplayInformation {
+	class DisplayInfoRetriever {
 		[DllImport("user32.dll")]
 		static extern bool EnumDisplaySettings(string lpszDeviceName, int iModeNum, ref DEVMODE lpDevMode);
 
@@ -64,19 +65,15 @@ namespace ScreenControlApp.Desktop.Common {
 			public int Y;
 		}
 
-		public static List<string> GetMonitorsInfo() {
-			var screens = new List<string>();
-			StringBuilder sb = new();
+		public static List<DisplayInfo> GetMonitorsInfo() {
+			var screens = new List<DisplayInfo>();
+
 			foreach (Screen screen in Screen.AllScreens) {
-				sb.Clear();
 				// Retrieve screen settings
 				var dm = new DEVMODE {
 					dmSize = (short)Marshal.SizeOf(typeof(DEVMODE))
 				};
 				EnumDisplaySettings(screen.DeviceName, -1, ref dm);
-
-				sb.Append($"Device: {screen.DeviceName}; ");
-				sb.Append($"Real Resolution: {dm.dmPelsWidth}x{dm.dmPelsHeight}; ");
 
 				// Calculate the scaled resolution
 				IntPtr hMonitor = MonitorFromWindow(IntPtr.Zero, 2); // Default to the primary monitor
@@ -91,11 +88,14 @@ namespace ScreenControlApp.Desktop.Common {
 				int scaledWidth = (int)(dm.dmPelsWidth / scaleFactorX);
 				int scaledHeight = (int)(dm.dmPelsHeight / scaleFactorY);
 
-				sb.Append($"Scaled Resolution: {scaledWidth}x{scaledHeight}");
-				if (screen.Primary)
-					sb.Append("; Primary");
-
-				screens.Add(sb.ToString());
+				screens.Add(
+					new DisplayInfo(
+						Screen: screen,
+						DeviceName: screen.DeviceName,
+						RealResolution: new Resolution(dm.dmPelsWidth, dm.dmPelsHeight),
+						ScaledResolution: new Resolution(scaledWidth, scaledHeight),
+						IsPrimary: screen.Primary)
+					);
 			}
 			return screens;
 		}

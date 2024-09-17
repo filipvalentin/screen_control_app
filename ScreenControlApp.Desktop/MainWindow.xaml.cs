@@ -7,6 +7,7 @@ using ScreenControlApp.Desktop.Common;
 using System.Net.Http;
 using System.Text;
 using System.Windows.Forms;
+using ScreenControlApp.Desktop.Common.Displays;
 
 namespace ScreenControlApp.Desktop {
 
@@ -14,12 +15,14 @@ namespace ScreenControlApp.Desktop {
 		private ApplicationSettings Settings { get; set; } = null!;
 		private bool IsSettingsPageDisplayed = false;
 		private CancellationTokenSource CancellationTokenSource { get; set; } = new();
+		private List<DisplayInfo> Displays { get; set; }
 
 		public MainWindow() {
 			InitializeComponent();
 			//Application.Current.MainWindow.WindowState = WindowState.Maximized;
 
 			SharingSide_Passcode_TextBox.Text = GeneratePasskey();//"1234";//generate one
+			Displays = DisplayInfoRetriever.GetMonitorsInfo();
 
 			this.Closed += ReturnHostId;
 		}
@@ -95,14 +98,14 @@ namespace ScreenControlApp.Desktop {
 		}
 
 		private void Settings_Panel_ViewSelectedScreen_Button_Click(object sender, RoutedEventArgs e) {
-			var window = new ViewSelectedScreenWindow((string)Settings_Panel_ScreenSelector_ComboBox.SelectedItem);
+			var window = new ViewSelectedScreenWindow((DisplayInfo)Settings_Panel_ScreenSelector_ComboBox.SelectedItem);
 			window.Show();
 			window.Closed += Settings_Panel_ViewSelectedScreen_DisplayTimer_Tick;
 
 			this.Dispatcher.Invoke(() => Settings_Panel_ViewSelectedScreen_Button.IsEnabled = false);
 		}
 		private void Settings_Panel_ViewSelectedScreen_DisplayTimer_Tick(object? sender, EventArgs e) {
-				this.Dispatcher.Invoke(() => Settings_Panel_ViewSelectedScreen_Button.IsEnabled = true);
+			this.Dispatcher.Invoke(() => Settings_Panel_ViewSelectedScreen_Button.IsEnabled = true);
 		}
 
 		#endregion
@@ -137,7 +140,7 @@ namespace ScreenControlApp.Desktop {
 			});
 		}
 		private void SetUpDisplayInformation() {
-			Settings_Panel_ScreenSelector_ComboBox.ItemsSource = DisplayInformation.GetMonitorsInfo();
+			Settings_Panel_ScreenSelector_ComboBox.ItemsSource = Displays;
 		}
 
 		private void LoadSettings() {
