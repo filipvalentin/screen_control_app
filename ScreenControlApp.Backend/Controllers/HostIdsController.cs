@@ -15,5 +15,10 @@ namespace ScreenControlApp.Backend.Controllers {
 			HostIdGeneratorService.Return(hostId);
 			return Ok();
 		}
+		[HttpPost("keepAlive")]
+		public IActionResult KeepAlive(string hostId) {
+			HostIdGeneratorService.UpdateAlive(hostId);
+			return Ok();
+		}
 	}
 }

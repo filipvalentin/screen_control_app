@@ -215,7 +215,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 		private async Task ShareVideoFeed() {
 			var cancellationToken = CancellationTokenSource.Token;
 
-			using var frameProvider = new FFMPEGFrameProvider("E:\\Utilitare\\ShareX\\ffmpeg.exe", SharedScreen, cancellationToken); //new GDIFrameProvider(SharedScreen);//DDAPIFrameProvider(cancellationToken);//
+			using var frameProvider = new DDAPIFrameProvider(cancellationToken);//new FFMPEGFrameProvider("E:\\Utilitare\\ShareX\\ffmpeg.exe", SharedScreen, cancellationToken); //new GDIFrameProvider(SharedScreen);////
 			var frameSender = new ChannelFrameSender(Connection);
 
 			using var memoryStream = new MemoryStream();

@@ -1,4 +1,5 @@
 using ScreenControlApp.Backend.Hubs;
+using ScreenControlApp.Backend.Services;
 
 namespace ScreenControlApp.Backend {
 	public class Program {
@@ -8,6 +9,7 @@ namespace ScreenControlApp.Backend {
 			// Add services to the container.
 
 			builder.Services.AddControllers();
+			builder.Services.AddHostedService<HostIdCleanupService>();
 			builder.Services.AddSignalR();
 			// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 			//builder.Services.AddEndpointsApiExplorer();

@@ -2,23 +2,23 @@
 
 namespace ScreenControlApp.Backend.Services {
 	public static class HostIdGeneratorService {
-		private static readonly List<string> UsedHostIds = [];
+		private static readonly Dictionary<string, DateTime> UsedHostIds = [];
 
 		public static string Get() {
 			int tries = 0;
 			string id;
 			while (true) {
-				id = GenerateHostId(3, 3 + tries);
-				if (UsedHostIds.Contains(id))
+				id = Generate(3, 3 + tries);
+				if (UsedHostIds.ContainsKey(id))
 					tries++;
 				else break;
 			}
-			UsedHostIds.Add(id);
+			UsedHostIds[id] = DateTime.UtcNow;
 			return id;
 		}
 
 		// Generates IDs composed of digits: 123-456-789
-		private static string GenerateHostId(int sections, int sectionLength) {
+		private static string Generate(int sections, int sectionLength) {
 			StringBuilder sb = new();
 			Random random = new();
 			for (int i = 0; i < sections; i++) {
@@ -30,9 +30,31 @@ namespace ScreenControlApp.Backend.Services {
 			sb.Remove(sb.Length - 1, 1);
 			return sb.ToString();
 		}
-
 		public static void Return(string hostId) {
 			UsedHostIds.Remove(hostId);
 		}
+
+		public static void UpdateAlive(string hostId) {
+			if (UsedHostIds.ContainsKey(hostId)) {
+				UsedHostIds[hostId] = DateTime.UtcNow;
+			}
+		}
+
+		public static void CleanupExpiredHostIds() {
+			var now = DateTime.UtcNow;
+			var expiredKeys = new List<string>();
+
+			foreach (var kvp in UsedHostIds) {
+				if ((now - kvp.Value).TotalMinutes > 5) {
+					expiredKeys.Add(kvp.Key);
+				}
+			}
+
+			foreach (var key in expiredKeys) {
+				UsedHostIds.Remove(key);
+			}
+		}
+
+
 	}
 }

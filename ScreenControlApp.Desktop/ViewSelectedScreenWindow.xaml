@@ -27,13 +27,12 @@
 					   FontWeight="SemiBold" 
 					   Foreground="White" 
 					   Text="Selected Screen"/>
+			
 			<TextBlock Name="ScreenInfo_TextBlock" VerticalAlignment="Center" Margin="0,5,0,0"
 					   TextAlignment="Center" 
 					   FontSize="14"
 					   FontWeight="Regular" 
-					   Foreground="White" 
-					   Text="Resolution"/>
-
+					   Foreground="White" />
 		</StackPanel>
 
 		<Label Name="AutoClose_Label"
