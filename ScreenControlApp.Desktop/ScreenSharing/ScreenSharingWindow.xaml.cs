@@ -15,7 +15,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 
 	public partial class ScreenSharingWindow : Window, IDisposable {
 		private ApplicationSettings Settings { get; set; }
-		private HubConnection Connection { get; set; } = null!;
+		private HubConnection HubConnection { get; set; } = null!;
 		private string User { get; set; } = null!;
 		private string Passcode { get; set; } = null!;
 		private string PeerConnectionId { get; set; } = null!;
@@ -51,7 +51,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 				return;
 			}
 
-			await Connection.InvokeAsync("AnnounceShare", User, Passcode);
+			await HubConnection.InvokeAsync("AnnounceShare", User, Passcode);
 
 			PeerConnectionId = await PeerConnectionIdCompletionSource.Task;
 
@@ -61,14 +61,14 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 		}
 		private async Task InitializeSignalR() {
 			try {
-				Connection = new HubConnectionBuilder()
+				HubConnection = new HubConnectionBuilder()
 					.WithUrl(Settings.ServerAddress + Settings.HubName)
 					.Build();
 
-				Connection.Closed += async (obj) => {
+				HubConnection.Closed += async (obj) => {
 					await Task.Delay(new Random().Next(0, 5) * 1000);
 					try {
-						await Connection.StartAsync();
+						await HubConnection.StartAsync();
 						this.Dispatcher.Invoke(() => UpdateConnectionStatus(true));
 					}
 					catch (Exception e) {
@@ -79,22 +79,22 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 					//TODO: RESET CONNECTION IDS
 				};
 
-				Connection.On<string>("FailedConnection", (message) => {
+				HubConnection.On<string>("FailedConnection", (message) => {
 					MessageBox.Show($"Couldn't connect: {message}");
 				});
-				Connection.On<string>("FailedTransfer", (message) => {
+				HubConnection.On<string>("FailedTransfer", (message) => {
 					MessageBox.Show($"Couldn't transfer: {message}");
 				});
-				Connection.On<string>("ReceiveConnectionToShare", (peerId) => {
+				HubConnection.On<string>("ReceiveConnectionToShare", (peerId) => {
 					PeerConnectionIdCompletionSource.SetResult(peerId);
 				});
-				Connection.On<double, double>("ReceiveMouseMove", MouseMoveReceived);
-				Connection.On<int>("ReceiveMouseDown", MouseDownReceived);
-				Connection.On<int>("ReceiveMouseUp", MouseUpReceived);
-				Connection.On<int>("ReceiveMouseScroll", MouseScrollReceived);
-				Connection.On<int>("ReceiveKeyDown", KeyDownReceived);
-				Connection.On<int>("ReceiveKeyUp", KeyUpReceived);
-				await Connection.StartAsync();
+				HubConnection.On<double, double>("ReceiveMouseMove", MouseMoveReceived);
+				HubConnection.On<int>("ReceiveMouseDown", MouseDownReceived);
+				HubConnection.On<int>("ReceiveMouseUp", MouseUpReceived);
+				HubConnection.On<int>("ReceiveMouseScroll", MouseScrollReceived);
+				HubConnection.On<int>("ReceiveKeyDown", KeyDownReceived);
+				HubConnection.On<int>("ReceiveKeyUp", KeyUpReceived);
+				await HubConnection.StartAsync();
 			}
 			catch (Exception ex) {
 				MessageBox.Show(ex.Message);
@@ -215,22 +215,42 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 		private async Task ShareVideoFeed() {
 			var cancellationToken = CancellationTokenSource.Token;
 
-			using var frameProvider = new DDAPIFrameProvider(cancellationToken);//new FFMPEGFrameProvider("E:\\Utilitare\\ShareX\\ffmpeg.exe", SharedScreen, cancellationToken); //new GDIFrameProvider(SharedScreen);////
-			var frameSender = new ChannelFrameSender(Connection);
+			//using var frameProvider = new DDAPIFrameProvider(cancellationToken);//new FFMPEGFrameProvider("E:\\Utilitare\\ShareX\\ffmpeg.exe", SharedScreen, cancellationToken); //new GDIFrameProvider(SharedScreen);////
+			//var frameSender = new ChannelFrameSender(HubConnection);
 
 			using var memoryStream = new MemoryStream();
 			try {
-				while (!cancellationToken.IsCancellationRequested) {
+				//while (!cancellationToken.IsCancellationRequested) {
 					var timer = Stopwatch.StartNew();
 
-					frameProvider.CaptureFrame(memoryStream);
-					this.Dispatcher.Invoke(() => CaptureTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
+				//	frameProvider.CaptureFrame(memoryStream);
+				//	this.Dispatcher.Invoke(() => CaptureTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
 
+				//	timer.Restart();
+
+				//	await frameSender.SendFrame(memoryStream);
+				//	this.Dispatcher.Invoke(() => TransferTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
+				//}
+				using Process ffmpeg = new() {
+					StartInfo = new ProcessStartInfo {
+						FileName = "E:\\Utilitare\\ShareX\\ffmpeg.exe",
+						Arguments = "-f gdigrab -framerate 24 -i desktop -vcodec libx264 -preset ultrafast -tune zerolatency -f mpegts -",
+						UseShellExecute = false,
+						RedirectStandardOutput = true,
+						CreateNoWindow = true
+					}
+				};
+
+				ffmpeg.Start();
+				byte[] buffer = new byte[12288];
+				int bytesRead;
+
+				while ((bytesRead = ffmpeg.StandardOutput.BaseStream.Read(buffer, 0, buffer.Length)) > 0) {
 					timer.Restart();
-
-					await frameSender.SendFrame(memoryStream);
+					await HubConnection.SendAsync("SendVideoStream", PeerConnectionId, buffer);
 					this.Dispatcher.Invoke(() => TransferTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
 				}
+
 			}
 			catch (Exception ex) {
 				MessageBox.Show(ex.ToString());

@@ -49,6 +49,11 @@ namespace ScreenControlApp.Backend.Hubs {
 				Console.WriteLine(ex);
 			}
 		}
+		
+		public async Task SendVideoStream(string peerConnectionId, byte[] bytes) {
+			await Clients.Client(peerConnectionId).SendAsync("ReceiveVideoStream", bytes);
+            Console.WriteLine("sent");
+		}
 
 		public ChannelReader<byte[]> DownloadFrame(string connectionId, CancellationToken cancellationToken) {
 			var channel = Channel.CreateUnbounded<byte[]>();

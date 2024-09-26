@@ -10,12 +10,13 @@ using System.Collections.Concurrent;
 using ScreenControlApp.Desktop.Common.Settings;
 using System.Windows.Media;
 using ScreenControlApp.Desktop.ScreenControlling.Util;
+using System.IO.Pipelines;
 
 namespace ScreenControlApp.Desktop.ScreenControlling {
 
 	public partial class ScreenControllingWindow : Window, IDisposable {
 		private ApplicationSettings Settings { get; set; }
-		private HubConnection Connection { get; set; } = null!;
+		private HubConnection HubConnection { get; set; } = null!;
 		private string User { get; set; } = null!;
 		private string Passcode { get; set; } = null!;
 		private string PeerConnectionId { get; set; } = null!;
@@ -49,26 +50,26 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 				return;
 			}
 
-			await Connection.InvokeAsync("AnnounceControl", User, Passcode);
+			await HubConnection.InvokeAsync("AnnounceControl", User, Passcode);
 
 			PeerConnectionId = await PeerConnectionIdCompletionSource.Task;
 
 			_ = Task.Factory.StartNew(RetrieveFrames, TaskCreationOptions.LongRunning);
-			_ = Task.Factory.StartNew(DisplayFrames, TaskCreationOptions.LongRunning);
+			//_ = Task.Factory.StartNew(DisplayFrames, TaskCreationOptions.LongRunning);
 
 			IsInitializedCompletionSource.SetResult();
 		}
 
 		private async Task InitializeSignalR() {
 			try {
-				Connection = new HubConnectionBuilder()
+				HubConnection = new HubConnectionBuilder()
 					.WithUrl(Settings.ServerAddress + Settings.HubName)
 					.Build();
 
-				Connection.Closed += async (obj) => {
+				HubConnection.Closed += async (obj) => {
 					await Task.Delay(new Random().Next(0, 5) * 1000);
 					try {
-						await Connection.StartAsync();
+						await HubConnection.StartAsync();
 						this.Dispatcher.Invoke(() => UpdateConnectionStatus(true));
 					}
 					catch (Exception e) {
@@ -77,16 +78,16 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 						//handle this better
 					}
 				};
-				Connection.On<string>("FailedConnection", (message) => {
+				HubConnection.On<string>("FailedConnection", (message) => {
 					MessageBox.Show($"Couldn't connect: {message}");
 				});
-				Connection.On<string>("ReceiveConnectionToControl", (peerId) => {
+				HubConnection.On<string>("ReceiveConnectionToControl", (peerId) => {
 					PeerConnectionIdCompletionSource.SetResult(peerId);
 					this.Dispatcher.Invoke(() => UpdateConnectionStatus(true));
 				});
-				Connection.On<string>("Error", (error) => { MessageBox.Show($"Error: {error}"); });
+				HubConnection.On<string>("Error", (error) => { MessageBox.Show($"Error: {error}"); });
 
-				await Connection.StartAsync();
+				await HubConnection.StartAsync();
 			}
 			catch (Exception ex) {
 				MessageBox.Show(ex.Message);
@@ -108,30 +109,122 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 		private async Task RetrieveFrames() {
 			var token = CancellationTokenSource.Token;
 			await IsInitializedCompletionSource.Task;
-			var frameRetriever = new ChannelFrameRetriever(Connection, PeerConnectionId, token);
+			//var frameRetriever = new ChannelFrameRetriever(HubConnection, PeerConnectionId, token);
 			try {
 				var timer = Stopwatch.StartNew();
-				while (!token.IsCancellationRequested) {
-					timer.Restart();
+				//while (!token.IsCancellationRequested) {
+				//	timer.Restart();
 
-					var memoryStream = await frameRetriever.RetrieveAsync();
+				//	var memoryStream = await frameRetriever.RetrieveAsync();
 
-					if (memoryStream.Length == 0) {
-						await Task.Delay(500);
-						continue;
+				//	if (memoryStream.Length == 0) {
+				//		await Task.Delay(500);
+				//		continue;
+				//	}
+
+				//	memoryStream.Position = 0;
+				//	FrameBuffer.Add(memoryStream);
+
+				//timer.Stop();
+				//Dispatcher.Invoke(() => TransferTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
+				//}
+
+				using Process ffmpegDecoder = new Process {
+					StartInfo = new ProcessStartInfo {
+						FileName = "ffmpeg.exe",
+						//Arguments = "-fflags nobuffer -f mpegts -i pipe:0 -vf fps=24 -f image2pipe -vcodec bmp pipe:1",
+						Arguments = "-f mpegts -i pipe:0 -vf fps=24 R:/frame_%04d.png",
+						UseShellExecute = false,
+						RedirectStandardInput = true,
+						RedirectStandardOutput = true,
+						CreateNoWindow = true
 					}
+				};
 
-					memoryStream.Position = 0;
-					FrameBuffer.Add(memoryStream);
+				// Start FFmpeg process
+				ffmpegDecoder.Start();
 
+				MemoryStream videoStream = new();
+
+				HubConnection.On<byte[]>("ReceiveVideoStream", async (videoBytes) =>
+				{
+					await ffmpegDecoder.StandardInput.BaseStream.WriteAsync(videoBytes, 0, videoBytes.Length);
+					await ffmpegDecoder.StandardInput.BaseStream.FlushAsync(); // Flush to ensure data is sent
+				});
+
+				// Write received video stream to FFmpeg stdin
+				await videoStream.CopyToAsync(ffmpegDecoder.StandardInput.BaseStream);
+				//ffmpegDecoder.StandardInput.Close();
+
+				// Continuously read the output of FFmpeg (which will be raw bitmap data)
+				var bitmapReader = ffmpegDecoder.StandardOutput.BaseStream;
+
+				while (true) {
+					// Read and convert bitmap from FFmpeg output
+
+					Bitmap bitmap = ReadBitmapFromStream(bitmapReader);
 					timer.Stop();
 					Dispatcher.Invoke(() => TransferTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
+					if (bitmap != null) {
+						// Call method to display frame in WPF
+						ShowFrame(bitmap);
+					}
+					else {
+						MessageBox.Show("error");
+						break;
+					}
 				}
+
 			}
 			catch (Exception ex) {
 				MessageBox.Show(ex.ToString());
 			}
 		}
+		private Bitmap ReadBitmapFromStream(Stream stream) {
+			try {
+				// Create a memory stream to hold the incoming bitmap data
+				using (MemoryStream ms = new()) {
+					byte[] buffer = new byte[4096];
+					int bytesRead;
+
+					// Read until you have the entire BMP image data
+					while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0) {
+						ms.Write(buffer, 0, bytesRead);
+
+						// BMP images have a header. Check for end of image based on known file size or image structure.
+						// Optional: You may need to implement logic here to stop reading when the full bitmap is captured.
+					}
+
+					ms.Position = 0;  // Reset memory stream position to the beginning
+					return new Bitmap(ms);  // Create Bitmap from memory stream
+				}
+			}
+			catch (Exception ex) {
+				Console.WriteLine("Error reading bitmap from stream: " + ex.Message);
+				return null;
+			}
+		}
+		private void ShowFrame(Bitmap bitmap) {
+			var timer = Stopwatch.StartNew();
+			using MemoryStream memoryStream = new();
+			BitmapImage bitmapImage = new BitmapImage();
+			using (MemoryStream memory = new MemoryStream()) {
+				bitmap.Save(memory, System.Drawing.Imaging.ImageFormat.Bmp);
+				memory.Position = 0;
+				bitmapImage.BeginInit();
+				bitmapImage.StreamSource = memory;
+				bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
+				bitmapImage.EndInit();
+				bitmapImage.Freeze();
+			}
+			this.Dispatcher.Invoke(() => {
+				Image.Source = bitmapImage;
+				RenderFrameBufferLabel.Content = FrameBuffer.Count;
+			});
+			timer.Stop();
+			Dispatcher.Invoke(() => RenderTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
+		}
+
 
 		private async Task DisplayFrames() {
 			try {
@@ -162,7 +255,7 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 
 		private async void Button_Click(object sender, RoutedEventArgs e) {
 			try {
-				await Connection.InvokeAsync("AnnounceControl", User, Passcode);
+				await HubConnection.InvokeAsync("AnnounceControl", User, Passcode);
 			}
 			catch (Exception ex) {
 				MessageBox.Show(ex.Message);
@@ -179,29 +272,29 @@ namespace ScreenControlApp.Desktop.ScreenControlling {
 			double normalizedX = Math.Clamp(position.X / Image.ActualWidth, 0, 1);
 			double normalizedY = Math.Clamp(position.Y / Image.ActualHeight, 0, 1);
 
-			await Connection.SendAsync("SendMouseMove", PeerConnectionId, normalizedX, normalizedY);
+			await HubConnection.SendAsync("SendMouseMove", PeerConnectionId, normalizedX, normalizedY);
 		}
 
 		private async void VideoFeed_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e) {
-			await Connection.SendAsync("SendMouseDown", PeerConnectionId, (int)e.ChangedButton);
+			await HubConnection.SendAsync("SendMouseDown", PeerConnectionId, (int)e.ChangedButton);
 		}
 
 		private async void VideoFeed_MouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e) {
-			await Connection.SendAsync("SendMouseUp", PeerConnectionId, (int)e.ChangedButton);
+			await HubConnection.SendAsync("SendMouseUp", PeerConnectionId, (int)e.ChangedButton);
 		}
 
 		private async void VideoFeed_MouseScroll(object sender, System.Windows.Input.MouseWheelEventArgs e) {
-			await Connection.SendAsync("SendMouseScroll", PeerConnectionId, e.Delta);
+			await HubConnection.SendAsync("SendMouseScroll", PeerConnectionId, e.Delta);
 		}
 
 		private async void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e) {
 			if (!IsInitializedCompletionSource.Task.IsCompleted) return;
-			await Connection.SendAsync("SendKeyDown", PeerConnectionId, (int)e.Key);
+			await HubConnection.SendAsync("SendKeyDown", PeerConnectionId, (int)e.Key);
 		}
 
 		private async void Window_KeyUp(object sender, System.Windows.Input.KeyEventArgs e) {
 			if (!IsInitializedCompletionSource.Task.IsCompleted) return;
-			await Connection.SendAsync("SendKeyUp", PeerConnectionId, (int)e.Key);
+			await HubConnection.SendAsync("SendKeyUp", PeerConnectionId, (int)e.Key);
 		}
 
 		public void Dispose() {
