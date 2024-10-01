@@ -11,6 +11,9 @@ namespace ScreenControlApp.Backend {
 			builder.Services.AddControllers();
 			builder.Services.AddHostedService<HostIdCleanupService>();
 			builder.Services.AddSignalR();
+			builder.Services.AddCors(options => {
+				options.AddPolicy("Open", builder => builder.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+			});
 			// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 			//builder.Services.AddEndpointsApiExplorer();
 			//builder.Services.AddSwaggerGen();
@@ -27,7 +30,7 @@ namespace ScreenControlApp.Backend {
 
 			app.UseAuthorization();
 
-
+			app.UseCors("Open");
 			app.MapControllers();
 			app.MapHub<ScreenControlHub>("/screenControlHub");
 
