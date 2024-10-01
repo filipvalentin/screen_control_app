@@ -1,0 +1,120 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.SignalR.Client
+
+<PageTitle>Home</PageTitle>
+
+<style>
+	.top-row {
+		border-bottom: 1px solid #d6d5d5;
+		justify-content: center;
+		height: 3.5rem;
+		display: flex;
+		align-items: center;
+		background: var(--mud-palette-appbar-background);
+	}
+
+		.top-row ::deep a,
+		.top-row ::deep .btn-link {
+			white-space: nowrap;
+			margin-left: 1.5rem;
+			text-decoration: none;
+		}
+
+			.top-row ::deep a:hover, .top-row ::deep .btn-link:hover {
+				text-decoration: underline;
+			}
+
+			.top-row ::deep a:first-child {
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+</style>
+
+<MudPaper Class="d-flex flex-column flex-grow-1" Style="align-items: stretch;" Elevation="0" Square>
+	
+
+
+	@*< MudAppBar Dense>
+	<MudText Typo="Typo.h6" Class="m-2" Color="Color.Tertiary">Screen Control App</MudText>
+	</MudAppBar> *@
+	<div class="top-row px-4">
+		@* <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink> *@
+		@* <MudIconButton Icon="@Icons.Custom.Brands.MudBlazor" Style="color: white;" Href="https://mudblazor.com/" Target="_blank" /> *@
+		<MudText Typo="Typo.h6" Class="m-2" Color="Color.Tertiary">Screen Control App</MudText>
+	</div>
+
+	@if (!connected) {
+		<MudContainer Class="flex-grow-1 d-flex flex-column align-center justify-center">
+			<MudPaper Class="px-2 py-2" Width="30em">
+				<MudForm @bind-IsValid="@success" Class="gap-2">
+					<MudTextField T="string" Label="Host ID" Required="true" RequiredError="A host ID is required!"
+								  Validation="@(new Func<string, bool>(CheckNotEmpty))" />
+					<MudTextField T="string" Label="Host ID" Required="true" RequiredError="A passkey is required!"
+								  Validation="@(new Func<string, bool>(CheckNotEmpty))" />
+
+					<MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!success)" Class="ml-auto" OnClick="StartConnection">Connect</MudButton>
+				</MudForm>
+			</MudPaper>
+		</MudContainer>
+	}
+	else {
+		<ControlScreenComponent HostID="HostID" Passkey="Passkey"  />
+	}
+
+</MudPaper>
+
+@code {
+	[Inject] private ISnackbar Snackbar { get; set; } = null!;
+
+	private bool success = false;
+	private bool connected = false;
+}
+
+@functions {
+	private static bool CheckNotEmpty(string id) {
+		return !string.IsNullOrWhiteSpace(id);
+	}
+	private async Task StartConnection() {
+		await InitializeSignalR();
+
+		PeerConnectionId = await PeerConnectionIdCompletionSource.Task;
+		connected = true;
+
+	}
+	private async Task InitializeSignalR() {
+		try {
+			HubConnection = new HubConnectionBuilder()
+				.WithUrl("http://localhost:5026/screenControlHub")
+				.Build();
+
+			HubConnection.Closed += async (obj) => {
+				await Task.Delay(new Random().Next(0, 5) * 1000);
+				try {
+					await HubConnection.StartAsync();
+					// this.Dispatcher.Invoke(() => UpdateConnectionStatus(true));
+				}
+				catch (Exception e) {
+					Snackbar.Add("Couldn't reconnect: " + e.ToString(), Severity.Error);
+				}
+			};
+			HubConnection.On<string>("FailedConnection", (message) => {
+				Snackbar.Add($"Couldn't connect: {message}", Severity.Error);
+			});
+			HubConnection.On<string>("ReceiveConnectionToControl", (peerId) => {
+				PeerConnectionIdCompletionSource.SetResult(peerId);
+				// this.Dispatcher.Invoke(() => UpdateConnectionStatus(true));
+
+			});
+			HubConnection.On<string>("Error", (error) => Snackbar.Add($"Error {error}"));
+
+			await HubConnection.StartAsync();
+		}
+		catch (Exception ex) {
+			// MessageBox.Show(ex.Message);
+			Snackbar.Add(ex.Message, Severity.Error);
+
+			// CancellationTokenSource.Cancel();
+		}
+	}
+
+}

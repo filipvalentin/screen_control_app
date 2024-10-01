@@ -3,9 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.10.34928.147
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScreenControlApp.Desktop", "ScreenControlApp.Desktop.csproj", "{45A52B20-6448-414B-8CA5-EE4FFA006AB5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ScreenControlApp.Desktop", "ScreenControlApp.Desktop.csproj", "{45A52B20-6448-414B-8CA5-EE4FFA006AB5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScreenControlApp.Backend", "..\ScreenControlApp.Backend\ScreenControlApp.Backend.csproj", "{1B18E184-D9E5-49B9-B346-573349DF6462}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ScreenControlApp.Backend", "..\ScreenControlApp.Backend\ScreenControlApp.Backend.csproj", "{1B18E184-D9E5-49B9-B346-573349DF6462}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ScreenControlApp.Web", "..\ScreenControlApp.Web\ScreenControlApp.Web.csproj", "{B0644503-9519-45B5-B07C-8E3F873D9414}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{1B18E184-D9E5-49B9-B346-573349DF6462}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1B18E184-D9E5-49B9-B346-573349DF6462}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1B18E184-D9E5-49B9-B346-573349DF6462}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B0644503-9519-45B5-B07C-8E3F873D9414}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B0644503-9519-45B5-B07C-8E3F873D9414}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B0644503-9519-45B5-B07C-8E3F873D9414}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B0644503-9519-45B5-B07C-8E3F873D9414}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

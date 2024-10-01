@@ -1,0 +1,45 @@
+﻿@inherits LayoutComponentBase
+@inject NavigationManager NavigationManager
+
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+
+	@*     <div class="sidebar mud-elevation-1">
+	<div class="top-row mud-drawer-head">
+	<div>
+	<a class="navbar-brand" href="https://mudblazor.com/" target="_blank">MudBlazor</a>
+	</div>
+	</div>
+
+	<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+	<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+	<NavMenu />
+	</div>
+
+	</div>*@
+
+
+	@* 		<div class="top-row px-4">
+	@* <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink> *@
+	@* <MudIconButton Icon="@Icons.Custom.Brands.MudBlazor" Style="color: white;" Href="https://mudblazor.com/" Target="_blank" />
+	<MudText Typo="Typo.h6" Class="m-2" Color="Color.Tertiary">Screen Control App</MudText>
+	</div> *@
+
+	<MudPaper Class="overflow-y-auto overflow-x-hidden d-flex flex-column " style="height: 100vh;" Elevation="0" Square>
+		@Body
+	</MudPaper>
+
+</MudLayout>
+
+<div id="blazor-error-ui">
+	An unhandled error has occurred.
+	<a href="" class="reload">Reload</a>
+	<a class="dismiss">🗙</a>
+</div>
+@code {
+
+}

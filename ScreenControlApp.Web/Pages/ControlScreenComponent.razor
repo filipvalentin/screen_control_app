@@ -1,0 +1,12 @@
+﻿@code {
+	[Parameter] public string? HostID { get; set; } = null;
+	[Parameter] public string? Passkey { get; set; } = null;
+	private TaskCompletionSource<string> PeerConnectionIdCompletionSource = new();
+	private string PeerConnectionId = "";
+	private HubConnection HubConnection = null!;
+}
+
+@functions {
+
+}
+
