@@ -16,7 +16,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing.FrameSenders {
 			int offset = 0;
 			while (offset < frameBytes.Length) {
 				int count = Math.Min(chunkSize, frameBytes.Length - offset);
-				var chunk = new byte[count];
+				var chunk = new byte[count];//TODO! move allocations
 				Array.Copy(frameBytes, offset, chunk, 0, count);
 				await channel.Writer.WriteAsync(chunk);
 				offset += count;

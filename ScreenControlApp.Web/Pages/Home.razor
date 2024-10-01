@@ -1,43 +1,28 @@
 ﻿@page "/"
 @using Microsoft.AspNetCore.SignalR.Client
-
+@inject IJSRuntime JS 
 <PageTitle>Home</PageTitle>
 
 <style>
-	.top-row {
+	.navbar {
 		border-bottom: 1px solid #d6d5d5;
 		justify-content: center;
-		height: 3.5rem;
+		height: 3.5em;
+		min-height: 3.5em;
 		display: flex;
 		align-items: center;
 		background: var(--mud-palette-appbar-background);
 	}
-
-		.top-row ::deep a,
-		.top-row ::deep .btn-link {
-			white-space: nowrap;
-			margin-left: 1.5rem;
-			text-decoration: none;
-		}
-
-			.top-row ::deep a:hover, .top-row ::deep .btn-link:hover {
-				text-decoration: underline;
-			}
-
-			.top-row ::deep a:first-child {
-				overflow: hidden;
-				text-overflow: ellipsis;
-			}
 </style>
 
-<MudPaper Class="d-flex flex-column flex-grow-1" Style="align-items: stretch;" Elevation="0" Square>
-	
+<MudPaper Class="d-flex flex-column flex-grow-1" MaxHeight="100%" Style="align-items: stretch;" Elevation="0" Square>
+
 
 
 	@*< MudAppBar Dense>
 	<MudText Typo="Typo.h6" Class="m-2" Color="Color.Tertiary">Screen Control App</MudText>
 	</MudAppBar> *@
-	<div class="top-row px-4">
+	<div class="navbar px-4">
 		@* <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink> *@
 		@* <MudIconButton Icon="@Icons.Custom.Brands.MudBlazor" Style="color: white;" Href="https://mudblazor.com/" Target="_blank" /> *@
 		<MudText Typo="Typo.h6" Class="m-2" Color="Color.Tertiary">Screen Control App</MudText>
@@ -46,75 +31,111 @@
 	@if (!connected) {
 		<MudContainer Class="flex-grow-1 d-flex flex-column align-center justify-center">
 			<MudPaper Class="px-2 py-2" Width="30em">
-				<MudForm @bind-IsValid="@success" Class="gap-2">
-					<MudTextField T="string" Label="Host ID" Required="true" RequiredError="A host ID is required!"
+				<MudForm @bind-IsValid="@formSuccess" Class="gap-2">
+					<MudTextField T="string" @bind-Value="hostId" Label="Host ID" Required="true" RequiredError="A host ID is required!"
 								  Validation="@(new Func<string, bool>(CheckNotEmpty))" />
-					<MudTextField T="string" Label="Host ID" Required="true" RequiredError="A passkey is required!"
+					<MudTextField T="string" @bind-Value="passcode" Label="Passcode" Required="true" RequiredError="A passcode is required!"
 								  Validation="@(new Func<string, bool>(CheckNotEmpty))" />
 
-					<MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!success)" Class="ml-auto" OnClick="StartConnection">Connect</MudButton>
+					<MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!formSuccess)" Class="ml-auto" OnClick="StartConnection">Connect</MudButton>
 				</MudForm>
 			</MudPaper>
 		</MudContainer>
 	}
-	else {
-		<ControlScreenComponent HostID="HostID" Passkey="Passkey"  />
-	}
+
+	<ControlScreenComponent @ref=controlScreenComponent HubConnection="@hubConnection" PeerConnectionId="@peerConnectionId" CancellationToken="@cancellationTokenSource.Token" Visible="@connected" />
 
 </MudPaper>
+
+<script>
+	window.beforeWindowUnload = function (dotNetHelper) {
+		window.addEventListener("beforeunload", function (event) {
+			// Call the .NET method before the window unloads
+			dotNetHelper.invokeMethodAsync("OnWindowClose");
+		});
+	};
+</script>
+
 
 @code {
 	[Inject] private ISnackbar Snackbar { get; set; } = null!;
 
-	private bool success = false;
+	private CancellationTokenSource cancellationTokenSource = new();
+
+	private bool formSuccess = false;
 	private bool connected = false;
+
+	private string hostId = "";
+	private string passcode = "";
+
+	ControlScreenComponent controlScreenComponent = null!;
+	private HubConnection hubConnection = null!;
+
+	private TaskCompletionSource<string> peerConnectionIdCompletionSource = new();
+	private string peerConnectionId = "";
 }
 
 @functions {
+	[JSInvokable]
+	public void OnWindowClose() {
+		cancellationTokenSource.Cancel();
+	}
+
+	protected override async Task OnAfterRenderAsync(bool firstRender) {
+		if (firstRender) {
+			// Register the JS method that listens for beforeunload
+			var dotNetRef = DotNetObjectReference.Create(this);
+			await JS.InvokeVoidAsync("beforeWindowUnload", dotNetRef);
+		}
+	}
+
 	private static bool CheckNotEmpty(string id) {
 		return !string.IsNullOrWhiteSpace(id);
 	}
+
 	private async Task StartConnection() {
 		await InitializeSignalR();
 
-		PeerConnectionId = await PeerConnectionIdCompletionSource.Task;
+		await hubConnection.InvokeAsync("AnnounceControl", hostId.Trim(), passcode.Trim());
+
+		peerConnectionId = await peerConnectionIdCompletionSource.Task;
 		connected = true;
 
+		await controlScreenComponent.StartTransmission();
 	}
+
 	private async Task InitializeSignalR() {
 		try {
-			HubConnection = new HubConnectionBuilder()
+			hubConnection = new HubConnectionBuilder()
 				.WithUrl("http://localhost:5026/screenControlHub")
 				.Build();
 
-			HubConnection.Closed += async (obj) => {
+			hubConnection.Closed += async (obj) => {
 				await Task.Delay(new Random().Next(0, 5) * 1000);
 				try {
-					await HubConnection.StartAsync();
+					await hubConnection.StartAsync();
 					// this.Dispatcher.Invoke(() => UpdateConnectionStatus(true));
 				}
 				catch (Exception e) {
 					Snackbar.Add("Couldn't reconnect: " + e.ToString(), Severity.Error);
 				}
 			};
-			HubConnection.On<string>("FailedConnection", (message) => {
+			hubConnection.On<string>("FailedConnection", (message) => {
 				Snackbar.Add($"Couldn't connect: {message}", Severity.Error);
 			});
-			HubConnection.On<string>("ReceiveConnectionToControl", (peerId) => {
-				PeerConnectionIdCompletionSource.SetResult(peerId);
+			hubConnection.On<string>("ReceiveConnectionToControl", (peerId) => {
+				peerConnectionIdCompletionSource.SetResult(peerId);
 				// this.Dispatcher.Invoke(() => UpdateConnectionStatus(true));
-
 			});
-			HubConnection.On<string>("Error", (error) => Snackbar.Add($"Error {error}"));
+			hubConnection.On<string>("Error", (error) => Snackbar.Add($"Protocol error: {error}"));
 
-			await HubConnection.StartAsync();
+			await hubConnection.StartAsync();
 		}
 		catch (Exception ex) {
 			// MessageBox.Show(ex.Message);
-			Snackbar.Add(ex.Message, Severity.Error);
+			Snackbar.Add($"Error: {ex.Message}", Severity.Error);
 
 			// CancellationTokenSource.Cancel();
 		}
 	}
-
 }

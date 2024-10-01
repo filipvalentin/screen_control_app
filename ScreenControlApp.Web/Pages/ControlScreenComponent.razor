@@ -1,12 +1,112 @@
-﻿@code {
-	[Parameter] public string? HostID { get; set; } = null;
-	[Parameter] public string? Passkey { get; set; } = null;
-	private TaskCompletionSource<string> PeerConnectionIdCompletionSource = new();
-	private string PeerConnectionId = "";
-	private HubConnection HubConnection = null!;
+﻿@using Microsoft.AspNetCore.SignalR.Client
+@using System.Collections.Concurrent;
+@using System.IO;
+@using System.Text
+@using System.Threading.Tasks.Dataflow;
+
+@if (Visible) {
+	<MudImage ObjectFit="ObjectFit.Contain" Src="@imageSrc"></MudImage>
+}
+
+
+@code {
+	[Inject] private ISnackbar Snackbar { get; set; } = null!;
+
+	[Parameter] public HubConnection HubConnection { get; set; } = null!;
+	[Parameter] public string PeerConnectionId { get; set; } = null!;
+	[Parameter] public bool Visible { get; set; } = false;
+	[Parameter] public CancellationToken CancellationToken { get; set; }
+
+	private string imageSrc = "https://avatars.githubusercontent.com/u/18248760?v=4";
+	private readonly TaskCompletionSource Initialized = new();
+	private readonly BufferBlock<MemoryStream> FrameBuffer = new();
 }
 
 @functions {
 
+	protected override void OnInitialized() {
+		Initialized.SetResult();
+	}
+
+	public async Task StartTransmission() {
+		await Initialized.Task;
+
+		_ = Task.Factory.StartNew(RetrieveFrames, TaskCreationOptions.LongRunning);
+		_ = Task.Factory.StartNew(DisplayFrames, TaskCreationOptions.LongRunning);
+	}
+
+	public class ChannelFrameRetriever(HubConnection connection, string PeerConnectionId, CancellationToken cancellationToken) {
+		private readonly HubConnection Connection = connection;
+		private readonly CancellationToken CancellationToken = cancellationToken;
+		private readonly string PeerConnectionId = PeerConnectionId;
+
+		public async Task<MemoryStream> RetrieveAsync() {
+			var channel = await Connection.StreamAsChannelAsync<byte[]>("DownloadFrame", PeerConnectionId, CancellationToken);
+			var memoryStream = new MemoryStream(); //TODO maybe a pool?
+			while (await channel.WaitToReadAsync()) {
+				await foreach (var chunk in channel.ReadAllAsync()) {
+					memoryStream.Write(chunk, 0, chunk.Length);
+				}
+			}
+			return memoryStream;
+		}
+	}
+	private async Task RetrieveFrames() {
+		var token = CancellationToken;
+		var frameRetriever = new ChannelFrameRetriever(HubConnection, PeerConnectionId, token);
+
+		try {
+			// var timer = Stopwatch.StartNew();
+			while (!token.IsCancellationRequested) {
+				// timer.Restart();
+
+				var memoryStream = await frameRetriever.RetrieveAsync();
+
+				if (memoryStream.Length == 0) {
+					await Task.Delay(500);
+					continue;
+				}
+
+				memoryStream.Position = 0;
+				FrameBuffer.Post(memoryStream);
+				Console.WriteLine("added");
+				// timer.Stop();
+				// Dispatcher.Invoke(() => TransferTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
+			}
+		}
+		catch (Exception ex) {
+			// MessageBox.Show(ex.ToString());
+		}
+	}
+
+	private async Task DisplayFrames() {
+		try {
+			var token = CancellationToken;
+			// var timer = Stopwatch.StartNew();
+			Console.WriteLine("displayframes start");
+			// while (!token.IsCancellationRequested) {
+			// timer.Restart();
+			// Console.WriteLine("insidewhile");
+			// MemoryStream memoryStream;
+			while (await FrameBuffer.OutputAvailableAsync(token)) {
+				using MemoryStream memoryStream = FrameBuffer.Receive(token);
+
+				Console.WriteLine("taken");
+				StringBuilder stringBuilder = new();
+				stringBuilder.Append("data:image/jpeg;base64,");
+				stringBuilder.Append(Convert.ToBase64String(memoryStream.ToArray()));
+				imageSrc = stringBuilder.ToString();
+				this.StateHasChanged();
+				Console.WriteLine("set");
+				// timer.Stop();
+				// Dispatcher.Invoke(() => RenderTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
+				await Task.Delay(24);
+
+			}
+		}
+		catch (Exception e) {
+			// MessageBox.Show(e.ToString());
+		}
+	}
 }
 
