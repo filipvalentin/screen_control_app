@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
+using System;
 using System.IO;
 using System.Threading.Channels;
 
@@ -7,23 +8,23 @@ namespace ScreenControlApp.Desktop.ScreenSharing.FrameSenders {
 		HubConnection Connection { get; set; } = connection;
 
 		public async Task SendFrame(MemoryStream memoryStream) {
-			byte[] frameBytes = memoryStream.ToArray();
 
 			var channel = Channel.CreateUnbounded<byte[]>();
 			await Connection.SendAsync("UploadFrame", channel.Reader);
 
-			const int chunkSize = 8192*2;
-			int offset = 0;
-			while (offset < frameBytes.Length) {
-				int count = Math.Min(chunkSize, frameBytes.Length - offset);
-				var chunk = new byte[count];//TODO! move allocations
-				Array.Copy(frameBytes, offset, chunk, 0, count);
-				await channel.Writer.WriteAsync(chunk);
-				offset += count;
-			}
-			channel.Writer.Complete();
+			const int chunkSize = 8192;
+			byte[] buffer = new byte[chunkSize];
+			int bytesRead;
 
+			while ((bytesRead = memoryStream.Read(buffer, 0, chunkSize)) > 0) {
+				var chunk = new byte[bytesRead];  // Always create a new array for each chunk
+				Array.Copy(buffer, chunk, bytesRead);
+				await channel.Writer.WriteAsync(chunk);
+			}
+
+			channel.Writer.Complete();
 			await channel.Reader.Completion;
 		}
 	}
+
 }
