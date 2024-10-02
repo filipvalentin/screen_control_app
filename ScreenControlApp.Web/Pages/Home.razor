@@ -1,6 +1,6 @@
 ﻿@page "/"
 @using Microsoft.AspNetCore.SignalR.Client
-@inject IJSRuntime JS 
+@inject IJSRuntime JS
 <PageTitle>Home</PageTitle>
 
 <style>
@@ -15,45 +15,71 @@
 	}
 </style>
 
-<MudPaper Class="d-flex flex-column flex-grow-1" MaxHeight="100%" Style="align-items: stretch;" Elevation="0" Square>
-
-
-
+<MudPaper Class="d-flex flex-column flex-grow-1" MaxHeight="100%" Elevation="0" Square>
 	@*< MudAppBar Dense>
 	<MudText Typo="Typo.h6" Class="m-2" Color="Color.Tertiary">Screen Control App</MudText>
 	</MudAppBar> *@
-	<div class="navbar px-4">
+	<div class="navbar px-4 d-flex flex-row gap-6">
 		@* <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink> *@
 		@* <MudIconButton Icon="@Icons.Custom.Brands.MudBlazor" Style="color: white;" Href="https://mudblazor.com/" Target="_blank" /> *@
-		<MudText Typo="Typo.h6" Class="m-2" Color="Color.Tertiary">Screen Control App</MudText>
+		<MudText Typo="Typo.h6" Class="m-2" Style="color: #FFF">Screen Control App</MudText>
+		<MudPaper Class="d-flex flex-row gap-3 px-2 py-1" Style="background: #FFFFFF50;">
+			<MudTooltip Text="Trasnsfer time: the time it took to transfer a frame">
+				<MudContainer Class="d-flex flex-row gap-1 px-0" Style="background: #0000;">
+					<MudText Typo="Typo.body2" Class="m-2" Color="Color.Default">T:</MudText>
+					<MudText Typo="Typo.body2" Class="m-2" Color="Color.Default">@(TransferTime)ms</MudText>
+				</MudContainer>
+			</MudTooltip>
+			<MudTooltip Text="Render time: the time it took to render a frame">
+				<MudContainer Class="d-flex flex-row gap-1 px-0" Style="background: #0000;">
+					<MudText Typo="Typo.body2" Class="m-2" Color="Color.Default">R:</MudText>
+					<MudText Typo="Typo.body2" Class="m-2" Color="Color.Default">@(RenderTime)ms</MudText>
+				</MudContainer>
+			</MudTooltip>
+
+		</MudPaper>
+		<MudButton Variant="Variant.Filled" Color="Color.Error" Class="px-2" OnClick="Disconnect">
+			<MudText Typo="Typo.body2">
+				Disconnect
+			</MudText>
+		</MudButton>
 	</div>
 
 	@if (!connected) {
 		<MudContainer Class="flex-grow-1 d-flex flex-column align-center justify-center">
-			<MudPaper Class="px-2 py-2" Width="30em">
+			<MudPaper Class="px-2 py-2" Width="30em" Elevation="2">
 				<MudForm @bind-IsValid="@formSuccess" Class="gap-2">
-					<MudTextField T="string" @bind-Value="hostId" Label="Host ID" Required="true" RequiredError="A host ID is required!"
+					<MudTextField T="string" @bind-Value="hostId" Label="Host ID" Required="true"
+								  RequiredError="A host ID is required!"
 								  Validation="@(new Func<string, bool>(CheckNotEmpty))" />
-					<MudTextField T="string" @bind-Value="passcode" Label="Passcode" Required="true" RequiredError="A passcode is required!"
+					<MudTextField T="string" @bind-Value="passcode" Label="Passcode" Required="true"
+								  RequiredError="A passcode is required!"
 								  Validation="@(new Func<string, bool>(CheckNotEmpty))" />
 
-					<MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!formSuccess)" Class="ml-auto" OnClick="StartConnection">Connect</MudButton>
+					<MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!formSuccess)" Class="ml-auto"
+							   OnClick="StartConnection">Connect</MudButton>
 				</MudForm>
 			</MudPaper>
 		</MudContainer>
 	}
 
-	<ControlScreenComponent @ref=controlScreenComponent HubConnection="@hubConnection" PeerConnectionId="@peerConnectionId" CancellationToken="@cancellationTokenSource.Token" Visible="@connected" />
+	<ControlScreenComponent @ref=controlScreenComponent
+							HubConnection="@hubConnection"
+							PeerConnectionId="@peerConnectionId"
+							CancellationToken="@cancellationTokenSource.Token"
+							Visible="@connected"
+							@bind-TransferTime="TransferTime"
+							@bind-RenderTime="RenderTime" />
 
 </MudPaper>
 
 <script>
 	window.beforeWindowUnload = function (dotNetHelper) {
-		window.addEventListener("beforeunload", function (event) {
-			// Call the .NET method before the window unloads
-			dotNetHelper.invokeMethodAsync("OnWindowClose");
-		});
-	};
+				window.addEventListener("beforeunload", function (event) {
+					// Call the .NET method before the window unloads
+					dotNetHelper.invokeMethodAsync("OnWindowClose");
+				});
+			};
 </script>
 
 
@@ -73,12 +99,16 @@
 
 	private TaskCompletionSource<string> peerConnectionIdCompletionSource = new();
 	private string peerConnectionId = "";
+
+	private string TransferTime = "0";
+	private string RenderTime = "0";
 }
 
 @functions {
 	[JSInvokable]
 	public void OnWindowClose() {
 		cancellationTokenSource.Cancel();
+		controlScreenComponent.Dispose();
 	}
 
 	protected override async Task OnAfterRenderAsync(bool firstRender) {
@@ -91,6 +121,11 @@
 
 	private static bool CheckNotEmpty(string id) {
 		return !string.IsNullOrWhiteSpace(id);
+	}
+
+	private void Disconnect() {
+		cancellationTokenSource.Cancel();
+		connected = false;
 	}
 
 	private async Task StartConnection() {

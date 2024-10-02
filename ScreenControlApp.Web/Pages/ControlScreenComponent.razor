@@ -3,11 +3,29 @@
 @using System.IO;
 @using System.Text
 @using System.Threading.Tasks.Dataflow;
+@using static System.Diagnostics.Stopwatch;
+@inject IJSRuntime JS
 
 @if (Visible) {
-	<MudImage ObjectFit="ObjectFit.Contain" Src="@imageSrc"></MudImage>
+	@* <MudImage ObjectFit="ObjectFit.Contain" Src="@imageSrc"></MudImage> *@
+	<img src="@imageSrc" style="width: 100%; height: 100%; object-fit: contain;" />
+	@* <canvas id="imageCanvas" width="640" height="480"></canvas> *@
 }
 
+<script>
+window.renderImageOnCanvas = (base64ImageData) => {
+	var canvas = document.getElementById('imageCanvas');
+	var ctx = canvas.getContext('2d');
+
+	var img = new Image();
+	img.onload = function() {
+		// Draw the image on the canvas
+		ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+	};
+
+	img.src = base64ImageData;
+};
+</script>
 
 @code {
 	[Inject] private ISnackbar Snackbar { get; set; } = null!;
@@ -16,26 +34,73 @@
 	[Parameter] public string PeerConnectionId { get; set; } = null!;
 	[Parameter] public bool Visible { get; set; } = false;
 	[Parameter] public CancellationToken CancellationToken { get; set; }
+	[Parameter] public string TransferTime { get; set; } = "0";
+	[Parameter] public EventCallback<string> TransferTimeChanged { get; set; }
+	[Parameter] public string RenderTime { get; set; } = "0";
+	[Parameter] public EventCallback<string> RenderTimeChanged { get; set; }
 
-	private string imageSrc = "https://avatars.githubusercontent.com/u/18248760?v=4";
+	private System.Diagnostics.Stopwatch TransferTimeTimer = new();
+
+	private string imageSrc = "";
 	private readonly TaskCompletionSource Initialized = new();
-	private readonly BufferBlock<MemoryStream> FrameBuffer = new();
+	private readonly BufferBlock<byte[]> FrameBuffer = new();
+
+	private MemoryStream ChunkBuffer = new();
+	private int frameChunksLeft = 0;
 }
 
 @functions {
+	public void Dispose() {
+		ChunkBuffer.Dispose();
+	}
+
+	private void SetTransferTime(long value) {
+		string strvalue = value.ToString();
+		if (TransferTime == strvalue)
+			return;
+		TransferTime = strvalue;
+		TransferTimeChanged.InvokeAsync(TransferTime);
+	}
+	private void SetRenderTime(long value) {
+		string strvalue = value.ToString();
+		if (RenderTime == strvalue)
+			return;
+		RenderTime = strvalue;
+		RenderTimeChanged.InvokeAsync(RenderTime);
+	}
 
 	protected override void OnInitialized() {
-		Initialized.SetResult();
+		Initialized.SetResult(); //prevents a weird bug that causes StartTransmission to be called more than once
 	}
 
 	public async Task StartTransmission() {
 		await Initialized.Task;
 
+		HubConnection.On<int>("AnnounceBlockFrameDownload", (int chunks) => {
+			if(frameChunksLeft >0)
+				Snackbar.Add("Error: out of order frame transfer", Severity.Error);
+			frameChunksLeft = chunks;
+			ChunkBuffer.Position = 0;
+			TransferTimeTimer.Restart();
+			// Console.WriteLine("announced");
+		});
+
+		HubConnection.On<byte[]>("BlockFrameDownloadChunk", (byte[] chunk) => {
+			ChunkBuffer.Write(chunk, 0, chunk.Length);
+			frameChunksLeft--;
+			if (frameChunksLeft == 0) {
+				ChunkBuffer.Position = 0;
+				FrameBuffer.Post(ChunkBuffer.ToArray());
+				SetTransferTime(TransferTimeTimer.ElapsedMilliseconds);
+			}
+			// Console.WriteLine("received chunk");
+		});
+
 		_ = Task.Factory.StartNew(RetrieveFrames, TaskCreationOptions.LongRunning);
 		_ = Task.Factory.StartNew(DisplayFrames, TaskCreationOptions.LongRunning);
 	}
 
-	public class ChannelFrameRetriever(HubConnection connection, string PeerConnectionId, CancellationToken cancellationToken) {
+	 public class ChannelFrameRetriever(HubConnection connection, string PeerConnectionId, CancellationToken cancellationToken) {
 		private readonly HubConnection Connection = connection;
 		private readonly CancellationToken CancellationToken = cancellationToken;
 		private readonly string PeerConnectionId = PeerConnectionId;
@@ -51,16 +116,17 @@
 			return memoryStream;
 		}
 	}
+
 	private async Task RetrieveFrames() {
 		var token = CancellationToken;
 		var frameRetriever = new ChannelFrameRetriever(HubConnection, PeerConnectionId, token);
 
 		try {
-			// var timer = Stopwatch.StartNew();
+			System.Diagnostics.Stopwatch timer = new();
 			while (!token.IsCancellationRequested) {
-				// timer.Restart();
+				timer.Restart();
 
-				var memoryStream = await frameRetriever.RetrieveAsync();
+				using MemoryStream memoryStream = await frameRetriever.RetrieveAsync();
 
 				if (memoryStream.Length == 0) {
 					await Task.Delay(500);
@@ -68,44 +134,43 @@
 				}
 
 				memoryStream.Position = 0;
-				FrameBuffer.Post(memoryStream);
-				Console.WriteLine("added");
-				// timer.Stop();
-				// Dispatcher.Invoke(() => TransferTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
+				FrameBuffer.Post(memoryStream.ToArray());
+				SetTransferTime(timer.ElapsedMilliseconds);
+				// Console.WriteLine("added");
 			}
 		}
 		catch (Exception ex) {
-			// MessageBox.Show(ex.ToString());
+			Snackbar.Add("Error retrieving frame: " + ex.ToString(), Severity.Error);
 		}
+
 	}
 
 	private async Task DisplayFrames() {
 		try {
 			var token = CancellationToken;
-			// var timer = Stopwatch.StartNew();
-			Console.WriteLine("displayframes start");
-			// while (!token.IsCancellationRequested) {
-			// timer.Restart();
-			// Console.WriteLine("insidewhile");
-			// MemoryStream memoryStream;
-			while (await FrameBuffer.OutputAvailableAsync(token)) {
-				using MemoryStream memoryStream = FrameBuffer.Receive(token);
+			System.Diagnostics.Stopwatch renderTimeTimer = new();
 
-				Console.WriteLine("taken");
+			while (await FrameBuffer.OutputAvailableAsync(token)) {
+				renderTimeTimer.Restart();
+				byte[] frame = FrameBuffer.Receive(token);
+				// Console.WriteLine("frames in buffer"+FrameBuffer.Count);//always 0 frames in buffer
+
+				// Console.WriteLine("taken");
 				StringBuilder stringBuilder = new();
 				stringBuilder.Append("data:image/jpeg;base64,");
-				stringBuilder.Append(Convert.ToBase64String(memoryStream.ToArray()));
+				stringBuilder.Append(Convert.ToBase64String(frame));
 				imageSrc = stringBuilder.ToString();
-				this.StateHasChanged();
-				Console.WriteLine("set");
-				// timer.Stop();
-				// Dispatcher.Invoke(() => RenderTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
-				await Task.Delay(24);
+				// await JS.InvokeVoidAsync("renderImageOnCanvas", stringBuilder.ToString());
 
+				SetRenderTime(renderTimeTimer.ElapsedMilliseconds);
+
+				// StateHasChanged();
+				// Console.WriteLine("set");				
+				// await Task.Delay(1000/24);
 			}
 		}
 		catch (Exception e) {
-			// MessageBox.Show(e.ToString());
+			Snackbar.Add("Error rendering image: " + e.ToString(), Severity.Error);
 		}
 	}
 }

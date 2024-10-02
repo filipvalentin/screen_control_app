@@ -1,11 +1,10 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
 using System.IO;
-using System.Threading.Channels;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement.ProgressBar;
 
 namespace ScreenControlApp.Desktop.ScreenSharing.FrameSenders {
-	public class BlockFrameSender(HubConnection connection) : IFrameSender {
-		HubConnection Connection { get; set; } = connection;
+	public class BlockFrameSender(HubConnection hubConnection, string peerConnectionId) : IFrameSender {
+		private HubConnection HubConnection { get; set; } = hubConnection;
+		private readonly string peerConnectionId = peerConnectionId; //TODO, when onnection reset, add method to update
 
 		public async Task SendFrame(MemoryStream memoryStream) {
 
@@ -13,7 +12,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing.FrameSenders {
 			byte[] buffer = new byte[chunkSize];
 			int bytesRead;
 
-			await Connection.SendAsync("DirectUploadFrame", Math.Ceiling((decimal)memoryStream.Length / buffer.Length));
+			await HubConnection.SendAsync("DirectUploadFrame", peerConnectionId, (int)Math.Ceiling((decimal)memoryStream.Length / buffer.Length));
 
 			while ((bytesRead = await memoryStream.ReadAsync(buffer)) > 0) {
 				// Create a smaller array only if the last chunk is smaller than the buffer
@@ -22,7 +21,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing.FrameSenders {
 					buffer = new byte[bytesRead];
 					Array.Copy(temp, 0, buffer, 0, bytesRead);
 				}
-				await Connection.SendAsync("UploadFrameChunk", buffer);
+				await HubConnection.SendAsync("DirectUploadFrameChunk", peerConnectionId, buffer);
 			}
 		}
 	}

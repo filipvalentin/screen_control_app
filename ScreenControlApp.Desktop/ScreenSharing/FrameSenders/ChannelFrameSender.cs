@@ -12,7 +12,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing.FrameSenders {
 			var channel = Channel.CreateUnbounded<byte[]>();
 			await Connection.SendAsync("UploadFrame", channel.Reader);
 
-			const int chunkSize = 8192;
+			const int chunkSize = 8192*2;
 			int offset = 0;
 			while (offset < frameBytes.Length) {
 				int count = Math.Min(chunkSize, frameBytes.Length - offset);
