@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Cors.Infrastructure;
 using ScreenControlApp.Backend.Hubs;
 using ScreenControlApp.Backend.Services;
 
@@ -12,7 +13,20 @@ namespace ScreenControlApp.Backend {
 			builder.Services.AddHostedService<HostIdCleanupService>();
 			builder.Services.AddSignalR();
 			builder.Services.AddCors(options => {
-				options.AddPolicy("Open", builder => builder.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+				options.AddPolicy("CorsPolicy",
+					builder => builder
+					.AllowAnyOrigin()
+					.AllowAnyMethod()
+					.AllowAnyHeader()
+					);
+
+				options.AddPolicy("signalr",
+					builder => builder
+					.AllowAnyMethod()
+					.AllowAnyHeader()
+
+					.AllowCredentials()
+					.SetIsOriginAllowed(hostName => true));
 			});
 			// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 			//builder.Services.AddEndpointsApiExplorer();
@@ -30,10 +44,10 @@ namespace ScreenControlApp.Backend {
 
 			app.UseAuthorization();
 
-			app.UseCors("Open");
 			app.MapControllers();
 			app.MapHub<ScreenControlHub>("/screenControlHub");
-
+			//app.UseCors("CorsPolicy");
+			app.UseCors("signalr"); //THIS FUCKING FINALLY WORKS!!!
 			app.Run();
 		}
 	}

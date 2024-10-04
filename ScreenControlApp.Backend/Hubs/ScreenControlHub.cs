@@ -27,8 +27,8 @@ namespace ScreenControlApp.Backend.Hubs {
 			await Clients.Client(value.shareConnectionId).SendAsync("ReceiveConnectionToShare", Context.ConnectionId);
 		}
 
-		public async Task DirectUploadFrame(string peerConnectionId, int chunks) {
-			await Clients.Client(peerConnectionId).SendAsync("AnnounceBlockFrameDownload", chunks);
+		public async Task DirectUploadFrame(string peerConnectionId, int frameSize, int chunks) {
+			await Clients.Client(peerConnectionId).SendAsync("AnnounceBlockFrameDownload", frameSize, chunks);
 		}
 		public async Task DirectUploadFrameChunk(string peerConnectionId, byte[] chunk) {
 			await Clients.Client(peerConnectionId).SendAsync("BlockFrameDownloadChunk", chunk);

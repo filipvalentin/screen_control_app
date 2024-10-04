@@ -12,7 +12,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing.FrameSenders {
 			byte[] buffer = new byte[chunkSize];
 			int bytesRead;
 
-			await HubConnection.SendAsync("DirectUploadFrame", peerConnectionId, (int)Math.Ceiling((decimal)memoryStream.Length / buffer.Length));
+			await HubConnection.SendAsync("DirectUploadFrame", peerConnectionId, memoryStream.Length, (int)Math.Ceiling((decimal)memoryStream.Length / buffer.Length));
 
 			while ((bytesRead = memoryStream.Read(buffer)) > 0) {
 				// Create a smaller array only if the last chunk is smaller than the buffer

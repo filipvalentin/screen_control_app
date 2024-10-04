@@ -8,7 +8,7 @@
 
 @if (Visible) {
 	@* <MudImage ObjectFit="ObjectFit.Contain" Src="@imageSrc"></MudImage> *@
-	<img src="@imageSrc" style="width: 100%; height: 100%; object-fit: contain;" />
+		<img src="@imageSrc" style="width: 100%; height: 100%; object-fit: contain;" />
 	@* 	<canvas id="imageCanvas"></canvas> *@
 }
 
@@ -26,6 +26,8 @@ window.renderImageOnCanvas = (base64ImageData) => {
 	img.src = base64ImageData;
 };
 </script> *@
+
+
 
 @code {
 	[Inject] private ISnackbar Snackbar { get; set; } = null!;
@@ -76,9 +78,11 @@ window.renderImageOnCanvas = (base64ImageData) => {
 	public async Task StartTransmission() {
 		await Initialized.Task;
 
-		HubConnection.On<int>("AnnounceBlockFrameDownload", (int chunks) => {
-			if(frameChunksLeft >0)
+		HubConnection.On<int,int>("AnnounceBlockFrameDownload", (int frameSize, int chunks) => {
+			if (frameChunksLeft > 0) {
 				Snackbar.Add("Error: out of order frame transfer", Severity.Error);
+				return;
+			}
 			frameChunksLeft = chunks;
 			ChunkBuffer.Position = 0;
 			TransferTimeTimer.Restart();
@@ -96,11 +100,11 @@ window.renderImageOnCanvas = (base64ImageData) => {
 			// Console.WriteLine("received chunk");
 		});
 
-		_ = Task.Factory.StartNew(RetrieveFrames, TaskCreationOptions.LongRunning);
+		// _ = Task.Factory.StartNew(RetrieveFrames, TaskCreationOptions.LongRunning);
 		_ = Task.Factory.StartNew(DisplayFrames, TaskCreationOptions.LongRunning);
 	}
 
-	 public class ChannelFrameRetriever(HubConnection connection, string PeerConnectionId, CancellationToken cancellationToken) {
+	public class ChannelFrameRetriever(HubConnection connection, string PeerConnectionId, CancellationToken cancellationToken) {
 		private readonly HubConnection Connection = connection;
 		private readonly CancellationToken CancellationToken = cancellationToken;
 		private readonly string PeerConnectionId = PeerConnectionId;
@@ -160,7 +164,7 @@ window.renderImageOnCanvas = (base64ImageData) => {
 				stringBuilder.Append("data:image/jpeg;base64,");
 				stringBuilder.Append(Convert.ToBase64String(frame));
 				imageSrc = stringBuilder.ToString();//img src impl
-				// await JS.InvokeVoidAsync("renderImageOnCanvas", stringBuilder.ToString()); //JS canvas impl
+													// await JS.InvokeVoidAsync("renderImageOnCanvas", stringBuilder.ToString()); //JS canvas impl
 
 				SetRenderTime(renderTimeTimer.ElapsedMilliseconds);
 

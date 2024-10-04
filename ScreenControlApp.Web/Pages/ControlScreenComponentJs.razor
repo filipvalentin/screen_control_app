@@ -1,0 +1,144 @@
+﻿@inject IJSRuntime JS
+
+<div class="d-flex flex-row gap-1">
+	<label>hostId:</label><textarea id="hostId"></textarea>
+	<label>passcode:</label><textarea id="passcode"></textarea>
+	<button onclick="StartHandshake()">Start Connection</button>
+	<div>
+		<label>T:</label>
+		<label id="transferTime">0</label>
+		<label>ms</label>
+	</div>
+	<div>
+		<label>R:</label>
+		<label id="renderTime">0</label>
+		<label>ms</label>
+	</div>
+</div>
+
+<img id="image" src="" style="width: 100%; height: 100%; object-fit: contain;" />
+
+<script>
+	let bytes;
+	function Clicked(){
+		DotNet.invokeMethodAsync('BlazorWasmApp', 'JStoCSCall', bytes);
+	}
+
+	let peerId = "";
+	const transferTimeLabel = document.getElementById("transferTime");
+	const renderTimeLabel = document.getElementById("renderTime");
+	const image = document.getElementById("image");
+
+	const connection = new signalR.HubConnectionBuilder()
+		.withUrl("http://localhost:5026/screenControlHub")
+		.configureLogging(signalR.LogLevel.Information)
+		.build();
+	async function start() {
+		try {
+			await connection.start();
+			console.log("SignalR Connected.");
+		} catch (err) {
+			console.log(err);
+			setTimeout(start, 5000);
+		}
+	};
+	connection.onclose(async () => {
+		await start();
+	});
+	connection.on("FailedConnection", (m) => {
+		console.log("FailedConnection: " + m);
+	});
+	connection.on("ReceiveConnectionToControl", (p) => {
+		peerId = p;
+		console.log("ReceiveConnectionToControl: " + p);
+	});
+	connection.on("Error", (e) => {
+		console.log("Error: " + e);
+	});
+	start();
+
+	let frameBuffer = [];
+	let frameChunksLeft = 0;
+	let chunkBuffer;
+	let bytesRead = 0;
+
+	let transferTimeDate;
+	connection.on("AnnounceBlockFrameDownload", (frameSize, chunks) => {
+		if (frameChunksLeft > 0) {
+			console.log("Error: out of order frame transfer");
+			return;
+		}
+		console.log(frameSize, chunks);
+		frameChunksLeft = chunks;
+		chunkBuffer = new Uint8Array(frameSize);
+		bytesWritten = 0;
+		transferTimeDate = Date.now();
+		console.log("received announce");
+	});
+	function base64ToUint8Array(base64) {
+		let binaryString = atob(base64);  // Decode base64 string to binary string
+		let len = binaryString.length;
+		let bytes = new Uint8Array(len);  // Create Uint8Array to hold the decoded bytes
+		for (let i = 0; i < len; i++) {
+			bytes[i] = binaryString.charCodeAt(i);  // Map each character back to byte value
+		}
+		return bytes;
+	}
+
+	// let utf8Encode = new TextEncoder();
+	connection.on("BlockFrameDownloadChunk", (chunk) => {
+		
+		let byteArray = Uint8Array.from(atob(chunk), c => c.charCodeAt(0))
+		chunkBuffer.set(byteArray, bytesWritten);
+		frameChunksLeft--;
+		bytesWritten += byteArray.length;
+
+		if (frameChunksLeft === 0) {
+			frameBuffer.push(chunkBuffer);
+			chunkBuffer = null;
+		}
+
+		transferTimeLabel.innerText = Date.now() - transferTimeDate;
+	});
+
+	async function StartHandshake() {
+		try {
+			await connection.invoke("AnnounceControl", document.getElementById("hostId").value, document.getElementById("passcode").value);
+		} catch (err) {
+			console.error(err);
+		}
+		console.log("handshake done");
+
+		renderFrames();
+	}
+	async function bufferToBase64(buffer) {
+		// use a FileReader to generate a base64 data URI:
+		const base64url = await new Promise(r => {
+			const reader = new FileReader()
+			reader.onload = () => r(reader.result)
+			reader.readAsDataURL(new Blob([buffer]))
+		});
+
+		return base64url.slice(base64url.indexOf(',') + 1);
+	}
+
+	function renderFrames() {
+		if (frameBuffer.length > 0) {
+			let renderTimeDate = Date.now();
+			let frame = frameBuffer.shift(); 
+
+			image.src = "data:image/jpeg;base64," + bytesToBase64(frame);// bufferToBase64(frame);
+			renderTimeLabel.innerText = Date.now() - renderTimeDate;
+			// Recursively call renderFrames after the frame is processed
+			requestAnimationFrame(renderFrames);
+
+		} else {
+			// Check again later for new frames in the buffer
+			setTimeout(renderFrames, 100);  // Adjust interval as needed
+		}
+	}
+
+
+</script>
+
+

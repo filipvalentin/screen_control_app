@@ -216,8 +216,8 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 			var cancellationToken = CancellationTokenSource.Token;
 
 			using var frameProvider = new DDAPIFrameProvider(cancellationToken);//new FFMPEGFrameProvider("E:\\Utilitare\\ShareX\\ffmpeg.exe", SharedScreen, cancellationToken); //new GDIFrameProvider(SharedScreen);////
-			var frameSender = new ChannelFrameSender(HubConnection);//new BlockFrameSender(HubConnection, PeerConnectionId);
-
+			var frameSender = new BlockFrameSender(HubConnection, PeerConnectionId);//new ChannelFrameSender(HubConnection);
+			
 			using var memoryStream = new MemoryStream();
 			try {
 				while (!cancellationToken.IsCancellationRequested) {
@@ -232,7 +232,7 @@ namespace ScreenControlApp.Desktop.ScreenSharing {
 					await frameSender.SendFrame(memoryStream);
 					this.Dispatcher.Invoke(() => TransferTimeLabel.Content = timer.ElapsedMilliseconds + "ms");
 
-					await Task.Delay(1000 / 24);
+					await Task.Delay(1000/24);
 				}
 			}
 			catch (Exception ex) {
