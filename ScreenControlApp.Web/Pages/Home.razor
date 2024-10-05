@@ -19,159 +19,73 @@
 	@*< MudAppBar Dense>
 	<MudText Typo="Typo.h6" Class="m-2" Color="Color.Tertiary">Screen Control App</MudText>
 	</MudAppBar> style="display: none;"*@
-	<div class="navbar px-4 d-flex flex-row gap-6" style="display: none;">
+	<MudPaper Class="navbar px-4 d-flex flex-row gap-6" Elevation="0" Square>
 		@* <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink> *@
-		@* <MudIconButton Icon="@Icons.Custom.Brands.MudBlazor" Style="color: white;" Href="https://mudblazor.com/" Target="_blank" /> *@
-		<MudText Typo="Typo.h6" Class="m-2" Style="color: #FFF">Screen Control App</MudText>
-		<MudPaper Class="d-flex flex-row gap-3 px-2 py-1" Style="background: #FFFFFF50;">
-			<MudTooltip Text="Trasnsfer time: the time it took to transfer a frame">
-				<MudContainer Class="d-flex flex-row gap-1 px-0" Style="background: #0000;">
-					<MudText Typo="Typo.body2" Class="m-2" Color="Color.Default">T:</MudText>
-					<MudText Typo="Typo.body2" Class="m-2" Color="Color.Default">@(TransferTime)ms</MudText>
-				</MudContainer>
-			</MudTooltip>
-			<MudTooltip Text="Render time: the time it took to render a frame">
-				<MudContainer Class="d-flex flex-row gap-1 px-0" Style="background: #0000;">
-					<MudText Typo="Typo.body2" Class="m-2" Color="Color.Default">R:</MudText>
-					<MudText Typo="Typo.body2" Class="m-2" Color="Color.Default">@(RenderTime)ms</MudText>
-				</MudContainer>
-			</MudTooltip>
 
-		</MudPaper>
-		<MudButton Variant="Variant.Filled" Color="Color.Error" Class="px-2" OnClick="Disconnect">
-			<MudText Typo="Typo.body2">
-				Disconnect
-			</MudText>
-		</MudButton>
-	</div>
+		<MudText Class="m-2" style="color: #FFF;" @onclick="()=>signalRImplementation = SignalRImplementation.Choosing">Screen Control App</MudText>
 
-	@if (!connected) {
-@* 		<MudContainer Class="flex-grow-1 d-flex flex-column align-center justify-center">
-			<MudPaper Class="px-2 py-2" Width="30em" Elevation="2">
-				<MudForm @bind-IsValid="@formSuccess" Class="gap-2">
-					<MudTextField T="string" @bind-Value="hostId" Label="Host ID" Required="true"
-								  RequiredError="A host ID is required!"
-								  Validation="@(new Func<string, bool>(CheckNotEmpty))" />
-					<MudTextField T="string" @bind-Value="passcode" Label="Passcode" Required="true"
-								  RequiredError="A passcode is required!"
-								  Validation="@(new Func<string, bool>(CheckNotEmpty))" />
+		<MudPaper Class="d-flex flex-row gap-4 " Elevation="0" Style="background: #FFFFFF00;">
+			<MudPaper Class="d-flex flex-row gap-3 px-2 py-1 align-center" Style="background: #FFFFFF50;">
+				<MudTooltip Text="Trasnsfer time: the time it took to transfer a frame">
+					<MudContainer Class="d-flex flex-row gap-1 px-0" Style="background: #0000;">
+						<MudText Typo="Typo.body2" Class="m-2" Color="Color.Default">T:</MudText>
+						<MudText id="transferTimeLabel" Typo="Typo.body2" Class="m-2" Color="Color.Default">@TransferTime</MudText>
+						<MudText Typo="Typo.body2" Class="m-2" Color="Color.Default">ms</MudText>
+						@* the id will be detected by the JS component, there's no other easy way *@
+					</MudContainer>
+				</MudTooltip>
+				<MudTooltip Text="Render time: the time it took to render a frame">
+					<MudContainer Class="d-flex flex-row gap-1 px-0" Style="background: #0000;">
+						<MudText Typo="Typo.body2" Class="m-2" Color="Color.Default">R:</MudText>
+						<MudText id="renderTimeLabel" Typo="Typo.body2" Class="m-2" Color="Color.Default">@RenderTime</MudText>
+						<MudText Typo="Typo.body2" Class="m-2" Color="Color.Default">ms</MudText>
+					</MudContainer>
+				</MudTooltip>
 
-					<MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!formSuccess)" Class="ml-auto"
-							   OnClick="StartConnection">Connect</MudButton>
-				</MudForm>
 			</MudPaper>
-		</MudContainer> *@
-	}
+			<MudButton Variant="Variant.Filled" Color="Color.Error" Class="px-2" OnClick="Disconnect">
+				<MudText Typo="Typo.body2">
+					Disconnect
+				</MudText>
+			</MudButton>
+		</MudPaper>
+	</MudPaper>
 
-	@* <ControlScreenComponent @ref=controlScreenComponent
-	 						HubConnection="@hubConnection"
-	 						PeerConnectionId="@peerConnectionId"
-	 						CancellationToken="@cancellationTokenSource.Token"
-	 						Visible="@connected"
-	 						@bind-TransferTime="TransferTime"
-	 						@bind-RenderTime="RenderTime" /> *@
-							 <ControlScreenComponentJs></ControlScreenComponentJs>
-
+	<MudPaper Class="flex-grow-1 d-flex flex-column align-center justify-center" Elevation="0" Square>
+		@if (signalRImplementation == SignalRImplementation.BlazorWASM) {
+			<ControlScreenComponent CancellationTokenSource="cancellationTokenSource"
+									@bind-TransferTime="TransferTime"
+									@bind-RenderTime="RenderTime" />
+		}
+		@if (signalRImplementation == SignalRImplementation.JS) {
+			<ControlScreenComponentJs></ControlScreenComponentJs>
+		}
+		@if (signalRImplementation == SignalRImplementation.Choosing) {
+			<MudPaper Class="d-flex flex-column align-center justify-center px-2 py-2" Elevation="4">
+				<MudText>Choose the SignalR implementation:</MudText>
+				<MudPaper Class="d-flex flex-row gap-4 px-2 pt-2" Elevation="0">
+					<MudButton OnClick="() => signalRImplementation = SignalRImplementation.BlazorWASM" Variant="Variant.Filled" Color="Color.Primary">Blazor Implementation</MudButton>
+					<MudButton OnClick="() => signalRImplementation = SignalRImplementation.JS" Variant="Variant.Filled" Color="Color.Primary">JS Implementation</MudButton>
+				</MudPaper>
+			</MudPaper>
+		}
+	</MudPaper>
 </MudPaper>
 
-<script>
-	window.beforeWindowUnload = function (dotNetHelper) {
-				window.addEventListener("beforeunload", function (event) {
-					// Call the .NET method before the window unloads
-					dotNetHelper.invokeMethodAsync("OnWindowClose");
-				});
-			};
-</script>
 
 
 @code {
-	[Inject] private ISnackbar Snackbar { get; set; } = null!;
-
 	private CancellationTokenSource cancellationTokenSource = new();
-
-	private bool formSuccess = false;
-	private bool connected = false;
-
-	private string hostId = "";
-	private string passcode = "";
-
-	ControlScreenComponent controlScreenComponent = null!;
-	private HubConnection hubConnection = null!;
-
-	private TaskCompletionSource<string> peerConnectionIdCompletionSource = new();
-	private string peerConnectionId = "";
-
 	private string TransferTime = "0";
 	private string RenderTime = "0";
+	private enum SignalRImplementation { JS, BlazorWASM, Choosing }
+	private SignalRImplementation signalRImplementation = SignalRImplementation.Choosing;
 }
 
 @functions {
-	[JSInvokable]
-	public void OnWindowClose() {
-		cancellationTokenSource.Cancel();
-		controlScreenComponent.Dispose();
-	}
-
-	protected override async Task OnAfterRenderAsync(bool firstRender) {
-		if (firstRender) {
-			// Register the JS method that listens for beforeunload
-			var dotNetRef = DotNetObjectReference.Create(this);
-			await JS.InvokeVoidAsync("beforeWindowUnload", dotNetRef);
-		}
-	}
-
-	private static bool CheckNotEmpty(string id) {
-		return !string.IsNullOrWhiteSpace(id);
-	}
-
 	private void Disconnect() {
 		cancellationTokenSource.Cancel();
-		connected = false;
+
 	}
 
-	private async Task StartConnection() {
-		// await InitializeSignalR();
-
-		// await hubConnection.InvokeAsync("AnnounceControl", hostId.Trim(), passcode.Trim());
-
-		// peerConnectionId = await peerConnectionIdCompletionSource.Task;
-		// connected = true;
-
-		// await controlScreenComponent.StartTransmission();
-	}
-
-	private async Task InitializeSignalR() {
-		try {
-			hubConnection = new HubConnectionBuilder()
-				.WithUrl("http://localhost:5026/screenControlHub")
-				.Build();
-
-			hubConnection.Closed += async (obj) => {
-				await Task.Delay(new Random().Next(0, 5) * 1000);
-				try {
-					await hubConnection.StartAsync();
-					// this.Dispatcher.Invoke(() => UpdateConnectionStatus(true));
-				}
-				catch (Exception e) {
-					Snackbar.Add("Couldn't reconnect: " + e.ToString(), Severity.Error);
-				}
-			};
-			hubConnection.On<string>("FailedConnection", (message) => {
-				Snackbar.Add($"Couldn't connect: {message}", Severity.Error);
-			});
-			hubConnection.On<string>("ReceiveConnectionToControl", (peerId) => {
-				peerConnectionIdCompletionSource.SetResult(peerId);
-				// this.Dispatcher.Invoke(() => UpdateConnectionStatus(true));
-			});
-			hubConnection.On<string>("Error", (error) => Snackbar.Add($"Protocol error: {error}"));
-
-			await hubConnection.StartAsync();
-		}
-		catch (Exception ex) {
-			// MessageBox.Show(ex.Message);
-			Snackbar.Add($"Error: {ex.Message}", Severity.Error);
-
-			// CancellationTokenSource.Cancel();
-		}
-	}
 }

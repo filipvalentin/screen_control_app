@@ -6,9 +6,26 @@
 @using static System.Diagnostics.Stopwatch;
 @inject IJSRuntime JS
 
+@if (!connected) {
+	<MudContainer Class="flex-grow-1 d-flex flex-column align-center justify-center">
+		<MudPaper Class="px-2 py-2" Width="30em" Elevation="2">
+			<MudForm @bind-IsValid="@formSuccess" Class="gap-2">
+				<MudTextField T="string" @bind-Value="hostId" Label="Host ID" Required="true"
+							  RequiredError="A host ID is required!"
+							  Validation="@(new Func<string, bool>(CheckNotEmpty))" />
+				<MudTextField T="string" @bind-Value="passcode" Label="Passcode" Required="true"
+							  RequiredError="A passcode is required!"
+							  Validation="@(new Func<string, bool>(CheckNotEmpty))" />
+
+				<MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!formSuccess)" Class="ml-auto"
+						   OnClick="StartConnection">Connect</MudButton>
+			</MudForm>
+		</MudPaper>
+	</MudContainer>
+}
 @if (Visible) {
 	@* <MudImage ObjectFit="ObjectFit.Contain" Src="@imageSrc"></MudImage> *@
-		<img src="@imageSrc" style="width: 100%; height: 100%; object-fit: contain;" />
+	<img src="@imageSrc" style="width: 100%; height: 100%; object-fit: contain;" />
 	@* 	<canvas id="imageCanvas"></canvas> *@
 }
 
@@ -27,19 +44,39 @@ window.renderImageOnCanvas = (base64ImageData) => {
 };
 </script> *@
 
+<script>
+	window.beforeWindowUnload = function (dotNetHelper) {
+		window.addEventListener("beforeunload", function (event) {
+			// Call the .NET method before the window unloads
+			dotNetHelper.invokeMethodAsync("OnWindowClose");
+		});
+	};
+</script>
+
 
 
 @code {
 	[Inject] private ISnackbar Snackbar { get; set; } = null!;
 
-	[Parameter] public HubConnection HubConnection { get; set; } = null!;
-	[Parameter] public string PeerConnectionId { get; set; } = null!;
+	[Parameter] public CancellationTokenSource CancellationTokenSource { get; set; } = null!;
 	[Parameter] public bool Visible { get; set; } = false;
-	[Parameter] public CancellationToken CancellationToken { get; set; }
 	[Parameter] public string TransferTime { get; set; } = "0";
 	[Parameter] public EventCallback<string> TransferTimeChanged { get; set; }
 	[Parameter] public string RenderTime { get; set; } = "0";
 	[Parameter] public EventCallback<string> RenderTimeChanged { get; set; }
+
+
+	private bool formSuccess = false;
+	private bool connected = false;
+
+	private string hostId = "";
+	private string passcode = "";
+
+	ControlScreenComponent controlScreenComponent = null!;
+	private HubConnection hubConnection = null!;
+
+	private TaskCompletionSource<string> peerConnectionIdCompletionSource = new();
+	private string peerConnectionId = "";
 
 	private System.Diagnostics.Stopwatch TransferTimeTimer = new();
 
@@ -52,8 +89,68 @@ window.renderImageOnCanvas = (base64ImageData) => {
 }
 
 @functions {
+	[JSInvokable]
+	public void OnWindowClose() {
+		CancellationTokenSource.Cancel();
+		controlScreenComponent.Dispose();
+	}
+
+	protected override async Task OnAfterRenderAsync(bool firstRender) {
+		if (firstRender) {
+			// Register the JS method that listens for beforeunload
+			var dotNetRef = DotNetObjectReference.Create(this);
+			await JS.InvokeVoidAsync("beforeWindowUnload", dotNetRef);
+		}
+	}
+
 	public void Dispose() {
 		ChunkBuffer.Dispose();
+	}
+
+	private async Task StartConnection() {
+		// await InitializeSignalR();
+
+		// await hubConnection.InvokeAsync("AnnounceControl", hostId.Trim(), passcode.Trim());
+
+		// peerConnectionId = await peerConnectionIdCompletionSource.Task;
+		// connected = true;
+
+		// await controlScreenComponent.StartTransmission();
+	}
+
+	private async Task InitializeSignalR() {
+		try {
+			hubConnection = new HubConnectionBuilder()
+				.WithUrl("http://localhost:5026/screenControlHub")
+				.Build();
+
+			hubConnection.Closed += async (obj) => {
+				await Task.Delay(new Random().Next(0, 5) * 1000);
+				try {
+					await hubConnection.StartAsync();
+					// this.Dispatcher.Invoke(() => UpdateConnectionStatus(true));
+				}
+				catch (Exception e) {
+					Snackbar.Add("Couldn't reconnect: " + e.ToString(), Severity.Error);
+				}
+			};
+			hubConnection.On<string>("FailedConnection", (message) => {
+				Snackbar.Add($"Couldn't connect: {message}", Severity.Error);
+			});
+			hubConnection.On<string>("ReceiveConnectionToControl", (peerId) => {
+				peerConnectionIdCompletionSource.SetResult(peerId);
+				// this.Dispatcher.Invoke(() => UpdateConnectionStatus(true));
+			});
+			hubConnection.On<string>("Error", (error) => Snackbar.Add($"Protocol error: {error}"));
+
+			await hubConnection.StartAsync();
+		}
+		catch (Exception ex) {
+			// MessageBox.Show(ex.Message);
+			Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+
+			// CancellationTokenSource.Cancel();
+		}
 	}
 
 	private void SetTransferTime(long value) {
@@ -78,7 +175,7 @@ window.renderImageOnCanvas = (base64ImageData) => {
 	public async Task StartTransmission() {
 		await Initialized.Task;
 
-		HubConnection.On<int,int>("AnnounceBlockFrameDownload", (int frameSize, int chunks) => {
+		hubConnection.On<int, int>("AnnounceBlockFrameDownload", (int frameSize, int chunks) => {
 			if (frameChunksLeft > 0) {
 				Snackbar.Add("Error: out of order frame transfer", Severity.Error);
 				return;
@@ -89,7 +186,7 @@ window.renderImageOnCanvas = (base64ImageData) => {
 			// Console.WriteLine("announced");
 		});
 
-		HubConnection.On<byte[]>("BlockFrameDownloadChunk", (byte[] chunk) => {
+		hubConnection.On<byte[]>("BlockFrameDownloadChunk", (byte[] chunk) => {
 			ChunkBuffer.Write(chunk, 0, chunk.Length);
 			frameChunksLeft--;
 			if (frameChunksLeft == 0) {
@@ -122,8 +219,8 @@ window.renderImageOnCanvas = (base64ImageData) => {
 	}
 
 	private async Task RetrieveFrames() {
-		var token = CancellationToken;
-		var frameRetriever = new ChannelFrameRetriever(HubConnection, PeerConnectionId, token);
+		var token = CancellationTokenSource.Token;
+		var frameRetriever = new ChannelFrameRetriever(hubConnection, peerConnectionId, token);
 
 		try {
 			System.Diagnostics.Stopwatch timer = new();
@@ -151,7 +248,7 @@ window.renderImageOnCanvas = (base64ImageData) => {
 
 	private async Task DisplayFrames() {
 		try {
-			var token = CancellationToken;
+			var token = CancellationTokenSource.Token;
 			System.Diagnostics.Stopwatch renderTimeTimer = new();
 
 			while (await FrameBuffer.OutputAvailableAsync(token)) {
@@ -169,13 +266,16 @@ window.renderImageOnCanvas = (base64ImageData) => {
 				SetRenderTime(renderTimeTimer.ElapsedMilliseconds);
 
 				// StateHasChanged();
-				// Console.WriteLine("set");				
+				// Console.WriteLine("set");
 				// await Task.Delay(1000/24);
 			}
 		}
 		catch (Exception e) {
 			Snackbar.Add("Error rendering image: " + e.ToString(), Severity.Error);
 		}
+	}
+	private static bool CheckNotEmpty(string id) {
+		return !string.IsNullOrWhiteSpace(id);
 	}
 }
 

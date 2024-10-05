@@ -16,7 +16,8 @@
 	</div>
 </div>
 
-<img id="image" src="" style="width: 100%; height: 100%; object-fit: contain;" />
+ @* <img id="image" src="" style="width: 100%; height: 100%; object-fit: contain;" /> *@
+<video id="myVideo"></video>
 
 <script>
 	let bytes;
@@ -121,13 +122,27 @@
 
 		return base64url.slice(base64url.indexOf(',') + 1);
 	}
+	function displayVideoFromByteArray(byteArray) {
+		// Convert byte array to a Blob
+		const blob = new Blob([byteArray], { type: 'video/mp4' }); // Specify the correct mime type (e.g., 'video/webm' or 'video/mp4')
 
+		// Create a URL for the blob
+		const videoUrl = URL.createObjectURL(blob);
+
+		// Set the video element source to the blob URL
+		const videoElement = document.getElementById('myVideo'); // Replace 'myVideo' with your video tag's id
+		videoElement.src = videoUrl;
+
+		// Optionally, start playing the video
+		videoElement.play();
+	}
 	function renderFrames() {
 		if (frameBuffer.length > 0) {
 			let renderTimeDate = Date.now();
 			let frame = frameBuffer.shift(); 
 
-			image.src = "data:image/jpeg;base64," + bytesToBase64(frame);// bufferToBase64(frame);
+			//image.src = "data:image/jpeg;base64," + bytesToBase64(frame);// bufferToBase64(frame);
+			displayVideoFromByteArray(frame);
 			renderTimeLabel.innerText = Date.now() - renderTimeDate;
 			// Recursively call renderFrames after the frame is processed
 			requestAnimationFrame(renderFrames);
